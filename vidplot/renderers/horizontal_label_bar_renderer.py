@@ -1,15 +1,14 @@
 from typing import Any, Dict, List, Optional, Tuple
-import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import to_rgb
 
-from ..core.renderer import Renderer
+from vidplot.core import Renderer
 
 
 class HorizontalLabelBarRenderer(Renderer):
     """Useful for timestep-dependent labels in visualizations."""
-    
+
     def __init__(
         self,
         name: str,
@@ -35,18 +34,20 @@ class HorizontalLabelBarRenderer(Renderer):
         self._label_bar = None
         self._color_seed = color_seed if color_seed is not None else 42
         self._colors = None
-    
+
     @property
     def _default_size(self):
         return (None, self._height)
 
-    def _create_label_bar(self, labels: List[str], bar_height: int, bar_width: int) -> Dict[str, tuple]:
+    def _create_label_bar(
+        self, labels: List[str], bar_height: int, bar_width: int
+    ) -> Dict[str, tuple]:
         """Assign consistent BGR colors to label strings."""
         unique_labels = sorted(set(labels))
         n = len(unique_labels)
         if n > 10:
             raise ValueError("Too many unique labels for a bar plot (must be ≤ 10).")
-        
+
         cmap = plt.get_cmap("tab10")
         colors = [tuple(int(255 * c) for c in to_rgb(cmap(i))) for i in range(n)]
         colors = [tuple(reversed(color)) for color in colors]  # Convert RGB to BGR
@@ -86,5 +87,5 @@ class HorizontalLabelBarRenderer(Renderer):
         if self._label_bar is None:
             self._create_label_bar(data, bar_height, bar_width)
 
-        canvas[y_offset:y_offset+bar_height, x_offset:x_offset+bar_width] = self._label_bar
+        canvas[y_offset : y_offset + bar_height, x_offset : x_offset + bar_width] = self._label_bar
         return canvas

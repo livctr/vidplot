@@ -1,5 +1,3 @@
-from vidplot.core import Renderer
-
 from .rgb_renderer import RGBRenderer
 from .string_renderer import StringRenderer
 from .box_renderer import BoxRenderer
@@ -10,7 +8,7 @@ from .horizontal_label_bar_renderer import HorizontalLabelBarRenderer
 
 __all__ = [
     "Renderer",
-    "RGBRenderer", 
+    "RGBRenderer",
     "StringRenderer",
     "BoxRenderer",
     "COCOKeypoints3DRenderer",

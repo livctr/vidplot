@@ -1,4 +1,5 @@
-from typing import List, Tuple, Dict, Any, Optional
+import os
+from typing import List, Tuple, Dict
 
 import cv2
 import matplotlib.pyplot as plt
@@ -6,7 +7,7 @@ import numpy as np
 from tqdm import tqdm
 
 from .renderer import Renderer
-from .streamer import DataStreamer, StaticMixin
+from .streamer import DataStreamer, StaticDataStreamer
 
 
 class AnnotationOrchestrator:
@@ -32,28 +33,30 @@ class AnnotationOrchestrator:
         for i, row_h in enumerate(self.grid_template_rows):
             x = 0
             for j, col_w in enumerate(self.grid_template_columns):
-                coords[(i+1, j+1)] = (x, y, x+col_w, y+row_h)
+                coords[(i + 1, j + 1)] = (x, y, x + col_w, y + row_h)
                 x += col_w + self.gap
             y += row_h + self.gap
         return coords
 
     def _compute_canvas_shape(self):
-        height = sum(self.grid_template_rows) + (len(self.grid_template_rows)-1)*self.gap
-        width = sum(self.grid_template_columns) + (len(self.grid_template_columns)-1)*self.gap
+        height = sum(self.grid_template_rows) + (len(self.grid_template_rows) - 1) * self.gap
+        width = sum(self.grid_template_columns) + (len(self.grid_template_columns) - 1) * self.gap
         return (height, width, 3)
 
     def set_annotators(
         self,
         streamers: List[DataStreamer],
         renderers: List[Renderer],
-        routes: List[Tuple[str, str]]
+        routes: List[Tuple[str, str]],
     ):
         # Register streamers and renderers by name
         self.streamers = {s.name: s for s in streamers}
         self.renderers = {r.name: r for r in renderers}
+
         # Sort routes by renderer z_index
         def z_index_of_renderer(rname):
             return self.renderers[rname].z_index if rname in self.renderers else 0
+
         routes_sorted = sorted(routes, key=lambda pair: z_index_of_renderer(pair[1]))
         self.routes = routes_sorted
         # Check that each renderer fits in the grid
@@ -70,18 +73,50 @@ class AnnotationOrchestrator:
         # Draw grid cells as dashed lines
         for i, row_h in enumerate(self.grid_template_rows):
             for j, col_w in enumerate(self.grid_template_columns):
-                x1, y1, x2, y2 = self._cell_coords[(i+1, j+1)]
+                x1, y1, x2, y2 = self._cell_coords[(i + 1, j + 1)]
                 # Dashed rectangle
                 for k in range(x1, x2, 10):
-                    cv2.line(canvas, (k, y1), (min(k+5, x2), y1), (180,180,180), 1)
-                    cv2.line(canvas, (k, y2-1), (min(k+5, x2), y2-1), (180,180,180), 1)
+                    cv2.line(
+                        canvas,
+                        (k, y1),
+                        (min(k + 5, x2), y1),
+                        (180, 180, 180),
+                        1,
+                    )
+                    cv2.line(
+                        canvas,
+                        (k, y2 - 1),
+                        (min(k + 5, x2), y2 - 1),
+                        (180, 180, 180),
+                        1,
+                    )
                 for k in range(y1, y2, 10):
-                    cv2.line(canvas, (x1, k), (x1, min(k+5, y2)), (180,180,180), 1)
-                    cv2.line(canvas, (x2-1, k), (x2-1, min(k+5, y2)), (180,180,180), 1)
+                    cv2.line(
+                        canvas,
+                        (x1, k),
+                        (x1, min(k + 5, y2)),
+                        (180, 180, 180),
+                        1,
+                    )
+                    cv2.line(
+                        canvas,
+                        (x2 - 1, k),
+                        (x2 - 1, min(k + 5, y2)),
+                        (180, 180, 180),
+                        1,
+                    )
                 # Label cell
-                cv2.putText(canvas, f"({i+1},{j+1})", (x1+5, y1+20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (120,120,120), 1)
+                cv2.putText(
+                    canvas,
+                    f"({i+1},{j+1})",
+                    (x1 + 5, y1 + 20),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.5,
+                    (120, 120, 120),
+                    1,
+                )
         # Draw renderer bounding boxes (slightly smaller than cells)
-        color_map = plt.get_cmap('tab10', len(self.renderers))
+        color_map = plt.get_cmap("tab10", len(self.renderers))
         # Group renderers by cell to handle overlaps
         cell_renderers = {}
         for r in self.renderers.values():
@@ -94,47 +129,88 @@ class AnnotationOrchestrator:
             x1, y1 = self._cell_coords[(cell[0][0], cell[1][0])][:2]
             x2, y2 = self._cell_coords[(cell[0][1], cell[1][1])][2:]
             # Make boxes smaller than cell
-            margin = 5
-            x1, y1, x2, y2 = x1+margin, y1+margin, x2-margin, y2-margin
+            margin = 2
+            x1, y1, x2, y2 = x1 + margin, y1 + margin, x2 - margin, y2 - margin
             # For multiple renderers in same cell, make them progressively smaller
             for idx, r in enumerate(renderers):
                 shrink = idx * 3
-                rx1, ry1, rx2, ry2 = x1+shrink, y1+shrink, x2-shrink, y2-shrink
-                color = tuple(int(255*c) for c in color_map(list(self.renderers.values()).index(r))[:3])
+                rx1, ry1, rx2, ry2 = (
+                    x1 + shrink,
+                    y1 + shrink,
+                    x2 - shrink,
+                    y2 - shrink,
+                )
+                color = tuple(
+                    int(255 * c) for c in color_map(list(self.renderers.values()).index(r))[:3]
+                )
                 cv2.rectangle(canvas, (rx1, ry1), (rx2, ry2), color, 2)
-                cv2.putText(canvas, r.name, (rx1+5, ry1+20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+                cv2.putText(
+                    canvas,
+                    r.name,
+                    (rx1 + 5, ry1 + 20),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    color,
+                    2,
+                )
         cv2.imwrite(outpath, canvas)
 
-    def write(self, outpath: str, fourcc_str: str = 'mp4v', fps: float = 30.0, duration: Optional[float] = None):
+    def write(self, outpath: str, fourcc_str: str = "mp4v", fps: float = 30.0):
+        """
+        Write the annotated output to a file. Supports both video and image output.
+
+        Parameters
+        ----------
+        outpath : str
+            Output file path. If it ends with a video extension (e.g., .mp4, .avi), writes a video.
+            If it ends with an image extension (e.g., .png, .jpg, .jpeg), writes just the first
+            frame as an image.
+        fourcc_str : str, optional
+            FourCC code for video encoding (default: 'mp4v').
+        fps : float, optional
+            Frames per second for video output (default: 30.0).
+        """
+
+        # Determine output type by file extension
+        video_exts = {".mp4", ".avi", ".mov", ".mkv"}
+        image_exts = {".png", ".jpg", ".jpeg", ".bmp", ".tiff"}
+        ext = os.path.splitext(outpath)[1].lower()
+        if ext == "":
+            raise ValueError("Got empty extension.")
+        is_image = ext in image_exts
+        is_video = ext in video_exts
+        assert is_image or is_video, f"Got extension {ext}"
+
         height, width, _ = self._canvas_shape
-        fourcc = cv2.VideoWriter_fourcc(*fourcc_str)
-        writer = cv2.VideoWriter(outpath, fourcc, fps, (width, height))
-        
+        if is_video:
+            fourcc = cv2.VideoWriter_fourcc(*fourcc_str)
+            writer = cv2.VideoWriter(outpath, fourcc, fps, (width, height))
+
         # Separate static and dynamic streamers
         static_streamers = {}
         dynamic_streamers = {}
         static_data = {}
-        
+
         for name, streamer in self.streamers.items():
-            if isinstance(streamer, StaticMixin):
+            if isinstance(streamer, StaticDataStreamer):
                 static_streamers[name] = streamer
                 # Cache static data once
                 static_data[name] = streamer.stream()
             else:
                 dynamic_streamers[name] = streamer
-        
+
         # Prepare dynamic streamer iterators and buffers
         streamer_iters = {name: iter(s) for name, s in dynamic_streamers.items()}
         streamer_buffers = {}
         streamer_done = {name: False for name in dynamic_streamers}
-        
+
         # For progress bar, use min(approx_duration) if any finite, else 1.0
         # Only consider dynamic streamers for duration calculation
         approx_durations = [s.approx_duration for s in dynamic_streamers.values()]
-        finite_durations = [d for d in approx_durations if d < float('inf')]
+        finite_durations = [d for d in approx_durations if d < float("inf")]
         bar_duration = min(finite_durations) if finite_durations else 1.0
         n_frames = int(bar_duration * fps)
-        
+
         orchestrator_time = 0.0
         frame_idx = 0
 
@@ -142,7 +218,7 @@ class AnnotationOrchestrator:
         data_dict = {}
         # Add static data (no iteration needed)
         data_dict.update(static_data)
-        
+
         with tqdm(total=n_frames, desc="Rendering video") as pbar:
             while True:
 
@@ -151,10 +227,10 @@ class AnnotationOrchestrator:
                     if streamer_done[name]:
                         data_dict[name] = None
                         continue
-                    
+
                     # Buffer: (prev_time, prev_data), (next_time, next_data)
                     buf = streamer_buffers.get(name, None)
-                    
+
                     # Fill buffer if needed
                     while True:
                         if buf is None:
@@ -166,10 +242,10 @@ class AnnotationOrchestrator:
                                 streamer_done[name] = True
                                 data_dict[name] = None
                                 break
-                        
+
                         t1, d1 = buf[0]
                         t2, d2 = buf[1]
-                        
+
                         if t2 >= orchestrator_time:
                             # Pick closer
                             if abs(t1 - orchestrator_time) <= abs(t2 - orchestrator_time):
@@ -187,13 +263,13 @@ class AnnotationOrchestrator:
                                 streamer_done[name] = True
                                 data_dict[name] = None
                                 break
-                    
+
                     streamer_buffers[name] = buf
-                
+
                 # If any dynamic streamer is done, break
                 if any(streamer_done.values()):
                     break
-                
+
                 # Renderers draw in z-order
                 canvas = np.ones(self._canvas_shape, dtype=np.uint8) * 255
                 for sname, rname in self.routes:
@@ -203,10 +279,14 @@ class AnnotationOrchestrator:
                     x2, y2 = self._cell_coords[(r.grid_row[1], r.grid_column[1])][2:]
                     bbox = (x1, y1, x2, y2)
                     canvas = r.render(data_dict[sname], bbox, canvas)
-                
+
+                if is_image:
+                    cv2.imwrite(outpath, canvas)
+                    return
+
                 writer.write(canvas)
                 orchestrator_time += 1.0 / fps
                 frame_idx += 1
                 pbar.update(1)
-        
+
         writer.release()

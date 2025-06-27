@@ -2,7 +2,7 @@ from typing import Any, Dict, Optional, Tuple
 import cv2
 import numpy as np
 
-from ..core.renderer import Renderer
+from vidplot.core import Renderer
 
 
 class COCOKeypointsRenderer(Renderer):
@@ -137,4 +137,4 @@ class COCOKeypointsRenderer(Renderer):
         else:
             self._render_pose(data, canvas, bbox)
 
-        return canvas 
+        return canvas

@@ -1,8 +1,8 @@
-import os
 import numpy as np
 import pandas as pd
 import json
 from pathlib import Path
+
 
 def generate_labels_for_video(video_path, label_dir, label_name="label"):
     """
@@ -13,13 +13,13 @@ def generate_labels_for_video(video_path, label_dir, label_name="label"):
         label_name: Name of the label column/key
     """
     import cv2
+
     video_path = Path(video_path)
     label_dir = Path(label_dir)
     label_dir.mkdir(parents=True, exist_ok=True)
     cap = cv2.VideoCapture(str(video_path))
     fps = cap.get(cv2.CAP_PROP_FPS)
     n_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    duration = n_frames / fps
     times = np.arange(n_frames) / fps
     # Simple label: alternate between 0 and 1 every second
     labels = [(int(t) % 2) for t in times]
@@ -41,13 +41,15 @@ def generate_labels_for_video(video_path, label_dir, label_name="label"):
         json.dump({"time": times.tolist(), label_name: labels}, f)
     print(f"Labels for {video_path.name} saved to {label_dir}")
 
+
 def main():
-    test_data_dir = Path("tests/test_data/videos")
-    label_dir = Path("tests/test_data/frame_labels")
+    test_data_dir = Path("tests/input/videos")
+    label_dir = Path("tests/input/frame_labels")
     label_dir.mkdir(exist_ok=True)
     # Find all mp4 videos in test_data_dir
     for video_path in test_data_dir.glob("*.mp4"):
         generate_labels_for_video(video_path, label_dir)
+
 
 if __name__ == "__main__":
     main()

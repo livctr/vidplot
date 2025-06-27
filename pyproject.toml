@@ -28,16 +28,22 @@ dev = [
     "pytest-cov>=3.0.0",
     "black>=22.0.0",
     "flake8>=4.0.0",
+    "flake8-pyproject==1.2.3",
     "jupyter>=1.0.0",
-    "ipykernel>=6.0.0"
+    "ipykernel>=6.0.0",
+    "ruff>=0.4.0"
 ]
 
 [tool.black]
-line-length = 88
+line-length = 100
 
 [tool.pytest.ini_options]
 addopts = "--cov=vidplot --cov-report=term-missing"
 
 [tool.flake8]
-max-line-length = 88
+max-line-length = 100
+ignore = ["E203", "E226"]
 exclude = [".git", "__pycache__", "build", "dist", "venv"] 
+
+[tool.ruff]
+line-length = 100

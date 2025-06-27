@@ -1,13 +1,15 @@
 import cv2
 import numpy as np
 from typing import Any, Tuple, Optional
-from vidplot.core.renderer import Renderer, OptionalSize, DataStreamer
+from vidplot.core import Renderer, DataStreamer
+
 
 class StringRenderer(Renderer):
     """
     Renders a string within a bounding box on an image canvas using OpenCV.
     Compatible with the new Renderer API.
     """
+
     def __init__(
         self,
         name: str,
@@ -33,10 +35,8 @@ class StringRenderer(Renderer):
         self.float_precision = float_precision
 
     @property
-    def _default_size(self) -> OptionalSize:
-        (_, text_h), _ = cv2.getTextSize(
-            "test", self.font_face, self.font_scale, self.thickness
-        )
+    def _default_size(self) -> Tuple[Optional[int], Optional[int]]:
+        (_, text_h), _ = cv2.getTextSize("test", self.font_face, self.font_scale, self.thickness)
         # Width is flexible (None), height is estimated
         return (None, text_h * self.num_expected_lines)
 
@@ -66,7 +66,7 @@ class StringRenderer(Renderer):
             text = str(text)
 
         x, y, x2, y2 = bbox
-        w, h = x2 - x, y2 - y
+        _, h = x2 - x, y2 - y
         # Estimate text size
         (text_w, text_h), _ = cv2.getTextSize(text, font_face, font_scale, thickness)
 
@@ -87,7 +87,7 @@ class StringRenderer(Renderer):
             font_scale,
             font_color,
             thickness,
-            line_type
+            line_type,
         )
 
         return canvas

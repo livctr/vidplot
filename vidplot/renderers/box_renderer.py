@@ -1,8 +1,7 @@
-from typing import Any, Dict, List, Tuple
+from typing import Any, Tuple
 import cv2
-import numpy as np
 
-from ..core.renderer import Renderer
+from vidplot.core import Renderer
 
 
 class BoxRenderer(Renderer):
@@ -10,7 +9,7 @@ class BoxRenderer(Renderer):
     Renders bounding boxes inside a given bounding box region on a canvas.
     The rendered boxes are defined by normalized or absolute (x, y, w, h) coordinates.
     """
-    
+
     def __init__(
         self,
         name: str,
@@ -19,7 +18,7 @@ class BoxRenderer(Renderer):
         grid_column: Tuple[int, int],
         z_index: int = 0,
         color: Tuple[int, int, int] = (0, 255, 0),  # Default green
-        thickness: int = 2
+        thickness: int = 2,
     ):
         """
         Parameters:
@@ -79,14 +78,20 @@ class BoxRenderer(Renderer):
                 y1 = float(y1) / h0
                 x2 = float(x2) / w0
                 y2 = float(y2) / h0
-            
+
             x1 = int(x01 + x1 * w0)
             y1 = int(y01 + y1 * h0)
             x2 = int(x01 + x2 * w0)
             y2 = int(y01 + y2 * h0)
 
             # Draw bounding box
-            cv2.rectangle(canvas, (x1, y1), (x2, y2), self.default_color, self.default_thickness)
+            cv2.rectangle(
+                canvas,
+                (x1, y1),
+                (x2, y2),
+                self.default_color,
+                self.default_thickness,
+            )
 
             # Prepare annotation text
             label_parts = []
@@ -103,6 +108,15 @@ class BoxRenderer(Renderer):
                 font_scale = 0.5
                 thickness = 1
                 text_origin = (x1, y1 - 5 if y1 - 5 > 10 else y1 + 15)
-                cv2.putText(canvas, label, text_origin, font, font_scale, self.default_color, thickness, lineType=cv2.LINE_AA)
+                cv2.putText(
+                    canvas,
+                    label,
+                    text_origin,
+                    font,
+                    font_scale,
+                    self.default_color,
+                    thickness,
+                    lineType=cv2.LINE_AA,
+                )
 
-        return canvas 
+        return canvas

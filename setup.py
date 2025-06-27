@@ -21,9 +21,11 @@ setup(
             "pytest>=7.0.0",
             "pytest-cov>=3.0.0",
             "black>=22.0.0",
+            "flake8-pyproject==1.2.3",
             "flake8>=4.0.0",
             "jupyter>=1.0.0",
             "ipykernel>=6.0.0",
+            "ruff>=0.4.0",
         ],
     },
     python_requires=">=3.8",
@@ -36,4 +38,4 @@ setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-) 
+)

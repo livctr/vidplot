@@ -1,10 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Any, Tuple, Optional
-import cv2
-import numpy as np
-
 
 from .streamer import DataStreamer, SizedStreamerProtocol
+
 
 class Renderer(ABC):
     """Base class for rendering data from `DataStreamer`.
@@ -52,7 +50,9 @@ class Renderer(ABC):
 
         Subclasses must implement this to specify their preferred dimensions.
         """
-        raise NotImplementedError("Renderers without a sized data streamer must implement _default_size()")
+        raise NotImplementedError(
+            "Renderers without a sized data streamer must implement _default_size()"
+        )
 
     @property
     def default_size(self) -> Optional[Tuple[Optional[int], Optional[int]]]:

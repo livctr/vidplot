@@ -1,7 +1,7 @@
 from typing import Any, Tuple
 import cv2
 
-from ..core.renderer import Renderer
+from vidplot.core import Renderer
 
 
 class ProgressRenderer(Renderer):
@@ -18,7 +18,7 @@ class ProgressRenderer(Renderer):
         grid_column: Tuple[int, int],
         z_index: int = 0,
         bar_color: Tuple[int, int, int] = (0, 255, 0),
-        thickness: int = 2
+        thickness: int = 2,
     ):
         """
         Initializes the progress renderer.
@@ -72,6 +72,12 @@ class ProgressRenderer(Renderer):
         bar_y2 = y + h - 1
 
         # Draw vertical progress bar within the bbox
-        cv2.rectangle(canvas, (bar_x1, bar_y1), (bar_x2, bar_y2), self.bar_color, thickness=-1)
+        cv2.rectangle(
+            canvas,
+            (bar_x1, bar_y1),
+            (bar_x2, bar_y2),
+            self.bar_color,
+            thickness=-1,
+        )
 
-        return canvas 
+        return canvas

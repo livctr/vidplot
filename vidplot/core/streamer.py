@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Iterator, Protocol, Tuple
+from typing import Any, Dict, Protocol, Tuple
+
 
 class DataStreamer(ABC):
     """Abstract base class to sequentially traverse data based on time.
@@ -11,14 +12,15 @@ class DataStreamer(ABC):
         name (str): Name of the DataStreamer, for identification.
         sample_rate (float): The rate in Hz at which to sample and yield data.
     """
+
     def __init__(self, name: str, sample_rate: float = 30.0) -> None:
         if sample_rate <= 0:
             raise ValueError("Sample rate must be positive.")
         self.name = name
         self.sample_rate = sample_rate
-        self._timestep = 1. / sample_rate
+        self._timestep = 1.0 / sample_rate
         self._clock = 0.0
-    
+
     @property
     @abstractmethod
     def approx_duration(self) -> float:
@@ -30,7 +32,7 @@ class DataStreamer(ABC):
         """Metadata about the data stream. Override in subclasses if needed."""
         return {}
 
-    def __iter__(self) -> 'DataStreamer':
+    def __iter__(self) -> "DataStreamer":
         return self
 
     @abstractmethod
@@ -66,32 +68,30 @@ class KnownDurationProtocol(Protocol):
         """Subclasses must implement."""
         raise NotImplementedError("Duration needs to be implemented for a KnownDurationProtocol.")
 
-    @property
-    def approx_duration(self) -> float:
-        return self.duration
 
+class StaticDataStreamer(DataStreamer):
+    """Subclass for data streamers that always return the same data (static)."""
 
-class StaticMixin(ABC):
-    """Mixin for data streamers that always return the same data (static)."""
-    def __init__(self, *args, **kwargs):
-        self._cached_data = None
-        super().__init__(*args, **kwargs)
+    def __init__(
+        self,
+        name: str,
+        data: Any,
+        sample_rate: float = 30.0,
+    ):
+        super().__init__(name=name, sample_rate=sample_rate)
+        self._data = data
 
     @property
     def approx_duration(self) -> float:
         """Static data streams are assumed to be infinite in duration."""
-        return float('inf')
-
-    @property
-    def duration(self) -> float:
-        """Static data streams are assumed to be infinite in duration."""
-        return float('inf')
+        return float("inf")
 
     def stream(self) -> Any:
-        if self._cached_data is None:
-            self._cached_data = self._generate_data()
-        return self._cached_data
+        return self._data
 
-    @abstractmethod    
-    def _generate_data(self) -> Any:
-        raise NotImplementedError("Subclasses must implement _generate_data()")
+    @property
+    def metadata(self) -> Dict[str, Any]:
+        return {
+            "data_type": type(self._data).__name__,
+            "static": True,
+        }

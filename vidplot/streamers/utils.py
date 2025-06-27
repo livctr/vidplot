@@ -11,11 +11,11 @@ def _stream_with_last_frame_handling(
     last_frame: Any,
     sample_rate: float,
     seek_func: Callable[[], Tuple[float, Any]],
-    selection_method: str = "nearest"
+    selection_method: str = "nearest",
 ) -> Tuple[Any, float, Any, float, Any, float, Any]:
     """
     Generic streaming logic that handles last frame continuation.
-    
+
     Args:
         target_time: The target time to seek to
         prev_ts: Previous timestamp
@@ -26,8 +26,9 @@ def _stream_with_last_frame_handling(
         last_frame: Last frame data (for continuation)
         sample_rate: Sample rate for continuation logic
         seek_func: Function to get next timestamp and frame/data
-        selection_method: How to select between prev and cur ("nearest", "nearest_left", "nearest_right")
-    
+        selection_method: How to select between prev and cur
+            ("nearest", "nearest_left", "nearest_right")
+
     Returns:
         (frame, prev_ts, prev_frame, cur_ts, cur_frame, last_frame_time, last_frame)
     """
@@ -53,23 +54,63 @@ def _stream_with_last_frame_handling(
                 # Cache the last frame we have
                 last_frame_time = cur_ts
                 last_frame = cur_frame
-            
+
             # Continue rendering the last frame until target_time exceeds last_frame_time + fps
             fps = 1.0 / sample_rate
             if target_time > last_frame_time + fps:
                 raise StopIteration
-            
+
             # Return the last frame for any remaining time points
-            return last_frame, prev_ts, prev_frame, cur_ts, cur_frame, last_frame_time, last_frame
+            return (
+                last_frame,
+                prev_ts,
+                prev_frame,
+                cur_ts,
+                cur_frame,
+                last_frame_time,
+                last_frame,
+            )
 
     # choose frame based on selection method
     if selection_method == "nearest":
         if abs(prev_ts - target_time) <= abs(cur_ts - target_time):
-            return prev_frame, prev_ts, prev_frame, cur_ts, cur_frame, last_frame_time, last_frame
-        return cur_frame, prev_ts, prev_frame, cur_ts, cur_frame, last_frame_time, last_frame
+            return (
+                prev_frame,
+                prev_ts,
+                prev_frame,
+                cur_ts,
+                cur_frame,
+                last_frame_time,
+                last_frame,
+            )
+        return (
+            cur_frame,
+            prev_ts,
+            prev_frame,
+            cur_ts,
+            cur_frame,
+            last_frame_time,
+            last_frame,
+        )
     elif selection_method == "nearest_left":
-        return prev_frame, prev_ts, prev_frame, cur_ts, cur_frame, last_frame_time, last_frame
+        return (
+            prev_frame,
+            prev_ts,
+            prev_frame,
+            cur_ts,
+            cur_frame,
+            last_frame_time,
+            last_frame,
+        )
     elif selection_method == "nearest_right":
-        return cur_frame, prev_ts, prev_frame, cur_ts, cur_frame, last_frame_time, last_frame
+        return (
+            cur_frame,
+            prev_ts,
+            prev_frame,
+            cur_ts,
+            cur_frame,
+            last_frame_time,
+            last_frame,
+        )
     else:
         raise ValueError(f"Unknown selection_method: {selection_method}")

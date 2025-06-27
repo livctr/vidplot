@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 
-from ..core.renderer import Renderer
+from vidplot.core import Renderer
 
 
 class COCOKeypoints3DRenderer(Renderer):
@@ -22,7 +22,7 @@ class COCOKeypoints3DRenderer(Renderer):
         figsize: Tuple[int, int] = (4, 4),
         elev: int = 10,
         azim: int = -90,
-        confidence_threshold: float = 0.0
+        confidence_threshold: float = 0.0,
     ):
         """
         Parameters:
@@ -48,7 +48,7 @@ class COCOKeypoints3DRenderer(Renderer):
 
     def _render_3d_pose(self, pose: np.ndarray) -> np.ndarray:
         fig = plt.figure(figsize=self.figsize)
-        ax = fig.add_subplot(111, projection='3d')
+        ax = fig.add_subplot(111, projection="3d")
         ax.view_init(elev=self.elev, azim=self.azim)
 
         pose = np.asarray(pose)
@@ -65,15 +65,15 @@ class COCOKeypoints3DRenderer(Renderer):
         mask = conf >= self.confidence_threshold
         x, y, z = pose[mask, 0], pose[mask, 1], pose[mask, 2]
 
-        ax.scatter(x, y, z, c='red', s=20)
+        ax.scatter(x, y, z, c="red", s=20)
         ax.set_box_aspect([1, 1, 1])
-        ax.axis('off')
+        ax.axis("off")
 
         canvas = FigureCanvas(fig)
         canvas.draw()
-        buf = np.frombuffer(canvas.tostring_rgb(), dtype=np.uint8)
         w, h = fig.get_size_inches() * fig.get_dpi()
-        img = buf.reshape(int(h), int(w), 3)
+        buf = np.asarray(canvas.buffer_rgba(), dtype=np.uint8)
+        img = buf.reshape(int(h), int(w), 4)[..., :3]
         plt.close(fig)
         return img
 
@@ -98,5 +98,5 @@ class COCOKeypoints3DRenderer(Renderer):
             return canvas
 
         img_resized = cv2.resize(img, (w, h), interpolation=cv2.INTER_AREA)
-        canvas[y:y+h, x:x+w] = img_resized
-        return canvas 
+        canvas[y : y + h, x : x + w] = img_resized
+        return canvas

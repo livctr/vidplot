@@ -1,8 +1,7 @@
 import numpy as np
-from typing import Any, Dict, Optional, Tuple, Union
-from pathlib import Path
+from typing import Any, Dict, Optional, Tuple
 import cv2
-from . import DataStreamer, SizedStreamerProtocol
+from vidplot.core import DataStreamer, SizedStreamerProtocol
 from .utils import _stream_with_last_frame_handling
 
 
@@ -46,18 +45,14 @@ class OpenCVVideoStreamer(DataStreamer, SizedStreamerProtocol):
         return self._size
 
     def _seek(self) -> Tuple[float, np.ndarray]:
-        if not self.cap.grab():
-            self.cap.release()
-            raise StopIteration
-        
-        # NOTE: Not exactly accurate, but hopefully monotonic
-        ts = self.cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
-
-        ret, frame = self.cap.retrieve()
+        ret, frame = self.cap.read()
         if not ret:
             self.cap.release()
             raise StopIteration
-        
+
+        # NOTE: Not exactly accurate, but hopefully monotonic
+        ts = self.cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
+
         return ts, frame
 
     def stream(self) -> Any:
@@ -67,8 +62,16 @@ class OpenCVVideoStreamer(DataStreamer, SizedStreamerProtocol):
         Raises StopIteration when we've processed the last frame at target sample rate.
         """
         target_time = self._clock
-        
-        frame, self._prev_ts, self._prev_frame, self._cur_ts, self._cur_frame, self._last_frame_time, self._last_frame = _stream_with_last_frame_handling(
+
+        (
+            frame,
+            self._prev_ts,
+            self._prev_frame,
+            self._cur_ts,
+            self._cur_frame,
+            self._last_frame_time,
+            self._last_frame,
+        ) = _stream_with_last_frame_handling(
             target_time,
             self._prev_ts,
             self._prev_frame,
@@ -78,19 +81,20 @@ class OpenCVVideoStreamer(DataStreamer, SizedStreamerProtocol):
             self._last_frame,
             self.sample_rate,
             self._seek,
-            "nearest"
+            "nearest",
         )
-        
+
         return frame
 
 
 class PyAVVideoStreamer(DataStreamer, SizedStreamerProtocol):
     def __init__(self, name: str, path: str, sample_rate: float = 30.0) -> None:
         import av
+
         super().__init__(name, sample_rate)
         self.container = av.open(path)
         self.stream_vid = self.container.streams.video[0]
-        self.stream_vid.thread_type = 'AUTO'
+        self.stream_vid.thread_type = "AUTO"
 
         # Pre-iterator for decoded frames
         self.frame_iter = self.container.decode(video=0)
@@ -117,13 +121,21 @@ class PyAVVideoStreamer(DataStreamer, SizedStreamerProtocol):
     def _seek(self) -> Tuple[float, Any]:
         frame = next(self.frame_iter)
         ts = float(frame.pts * frame.time_base)
-        img = frame.to_ndarray(format='bgr24')
+        img = frame.to_ndarray(format="bgr24")
         return ts, img
 
     def stream(self) -> Any:
         target = self._clock
-        
-        frame, self._prev_ts, self._prev_frame, self._cur_ts, self._cur_frame, self._last_frame_time, self._last_frame = _stream_with_last_frame_handling(
+
+        (
+            frame,
+            self._prev_ts,
+            self._prev_frame,
+            self._cur_ts,
+            self._cur_frame,
+            self._last_frame_time,
+            self._last_frame,
+        ) = _stream_with_last_frame_handling(
             target,
             self._prev_ts,
             self._prev_frame,
@@ -133,20 +145,21 @@ class PyAVVideoStreamer(DataStreamer, SizedStreamerProtocol):
             self._last_frame,
             self.sample_rate,
             self._seek,
-            "nearest"
+            "nearest",
         )
-        
+
         return frame
 
 
 class DecordVideoStreamer(DataStreamer, SizedStreamerProtocol):
     def __init__(self, name: str, path: str, sample_rate: float = 30.0) -> None:
         from decord import VideoReader, cpu
+
         super().__init__(name, sample_rate)
         self.vr = VideoReader(path, ctx=cpu(0))
         self.fps = float(self.vr.get_avg_fps())
         self._duration = len(self.vr) / self.fps
-        self._size = (int(self.vr.width), int(self.vr.height))
+        self._size = int(self.vr[0].shape[1]), int(self.vr[0].shape[0])
 
         self._idx = 0
         self._prev_ts: Optional[float] = None
@@ -170,13 +183,21 @@ class DecordVideoStreamer(DataStreamer, SizedStreamerProtocol):
         frame = self.vr[self._idx]
         ts = self._idx / self.fps
         self._idx += 1
-        nd = frame.asnumpy() if hasattr(frame, 'asnumpy') else frame
+        nd = frame.asnumpy() if hasattr(frame, "asnumpy") else frame
         return ts, nd
 
     def stream(self) -> Any:
         target = self._clock
-        
-        frame, self._prev_ts, self._prev_frame, self._cur_ts, self._cur_frame, self._last_frame_time, self._last_frame = _stream_with_last_frame_handling(
+
+        (
+            frame,
+            self._prev_ts,
+            self._prev_frame,
+            self._cur_ts,
+            self._cur_frame,
+            self._last_frame_time,
+            self._last_frame,
+        ) = _stream_with_last_frame_handling(
             target,
             self._prev_ts,
             self._prev_frame,
@@ -186,9 +207,9 @@ class DecordVideoStreamer(DataStreamer, SizedStreamerProtocol):
             self._last_frame,
             self.sample_rate,
             self._seek,
-            "nearest"
+            "nearest",
         )
-        
+
         return frame
 
 
@@ -197,14 +218,15 @@ class VideoStreamer(DataStreamer, SizedStreamerProtocol):
     Factory wrapper that selects backend among 'opencv', 'pyav', or 'decord'.
     Delegates DataStreamer interface to chosen implementation.
     """
+
     def __init__(self, backend: str, name: str, path: str, sample_rate: float = 30.0) -> None:
         super().__init__(name, sample_rate)
         backend = backend.lower()
-        if backend == 'opencv':
+        if backend == "opencv":
             self._impl = OpenCVVideoStreamer(name, path, sample_rate)
-        elif backend == 'pyav':
+        elif backend == "pyav":
             self._impl = PyAVVideoStreamer(name, path, sample_rate)
-        elif backend == 'decord':
+        elif backend == "decord":
             self._impl = DecordVideoStreamer(name, path, sample_rate)
         else:
             raise ValueError(f"Unknown backend {backend}")
@@ -220,6 +242,12 @@ class VideoStreamer(DataStreamer, SizedStreamerProtocol):
     @property
     def metadata(self) -> Dict[str, Any]:
         return self._impl.metadata
-    
+
     def stream(self) -> Any:
         return self._impl.stream()
+
+    def __iter__(self):
+        return iter(self._impl)
+
+    def __next__(self):
+        return next(self._impl)
