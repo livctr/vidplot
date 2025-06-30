@@ -40,6 +40,7 @@ See the [demo](demo/) folder for an example script on how to use VidPlot. The sc
 ```bash
 python tests/scripts/generate_test_videos.py
 python tests/scripts/generate_test_labels.py
+python tests/scripts/generate_test_segmentations.py
 ```
 
 **Run all tests:**
@@ -65,14 +66,15 @@ This design makes it easy to add new annotation types, combine multiple visualiz
 
 VidPlot is designed to be extensible. Possible future work:
 
-| Extension Type         | Example Use Case                | How to Extend / Notes                                                                 |
-|-----------------------|---------------------------------|--------------------------------------------------------------------------------------|
-| **Keypoint Labeling** | COCO-style pose estimation      | Implement the optionality to have labels for each joint.           |
-| **General Keypoints** | Animal pose, facial landmarks   | Create a custom keypoint renderer; support arbitrary skeletons or point sets.        |
-| **Segmentation**      | Masks, polygons, RLE encoding   | Add a segmentation renderer. Use RLE (run-length encoding) for efficient storage.    |
+| Status | Extension Type         | Example Use Case                | How to Extend / Notes                                                                 |
+|:------:|-----------------------|---------------------------------|--------------------------------------------------------------------------------------|
+|   ⬜️    | **Keypoint Labeling** | COCO-style pose estimation      | Implement the optionality to have labels for each joint.           |
+|   ⬜️    | **General Keypoints** | Animal pose, facial landmarks   | Create a custom keypoint renderer; support arbitrary skeletons or point sets.        |
+|   ✅    | **Segmentation**      | Masks, polygons, RLE encoding   | Added a segmentation renderer using RLE for efficient mask storage.                  |
 
 **Tip:** See the `vidplot/renderers/` and `vidplot/streamers/` folders for examples.
 
 ## License
 
 **MIT** 
+ 

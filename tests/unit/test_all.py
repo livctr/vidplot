@@ -31,7 +31,7 @@ def test_annotated_video():
         (video_path_short, label_path_short, "annotated_video_misaligned.jpg"),
     ]:
         # Video streamer
-        vid_streamer = VideoStreamer("opencv", name="video", path=video, sample_rate=30.0)
+        vid_streamer = VideoStreamer("video", video, sample_rate=30.0)
         # Label streamer
         label_streamer = StaticTabularStreamer(
             name="labels",

@@ -3,7 +3,7 @@ import pandas as pd
 from typing import Any, Dict, Iterable, Optional, Union
 
 from vidplot.core import StaticDataStreamer, KnownDurationProtocol
-from .tabular_streamer import _load_and_validate_data_source
+from vidplot.streamers.utils import _load_and_validate_data_source
 
 
 class StaticTabularStreamer(StaticDataStreamer, KnownDurationProtocol):
@@ -21,6 +21,7 @@ class StaticTabularStreamer(StaticDataStreamer, KnownDurationProtocol):
         sample_rate: float = 30.0,
         num_samples: Optional[int] = None,
         subsample_method: str = "nearest",
+        increase_endpoint: bool = True,
     ):
         timestamps, data = _load_and_validate_data_source(data_source, data_col, time_col)
         if abs(timestamps[0] - 0) > 1e-5:
@@ -31,6 +32,7 @@ class StaticTabularStreamer(StaticDataStreamer, KnownDurationProtocol):
         if len(timestamps) >= 2:
             timestep = float(timestamps[-1] - timestamps[0]) / (len(timestamps) - 1)
             duration = timestamps[-1] + timestep
+            duration = timestamps[-1] + timestep if increase_endpoint else timestamps[-1]
         else:
             duration = 0.0
 

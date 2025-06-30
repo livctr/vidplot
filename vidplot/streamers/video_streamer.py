@@ -219,7 +219,9 @@ class VideoStreamer(DataStreamer, SizedStreamerProtocol):
     Delegates DataStreamer interface to chosen implementation.
     """
 
-    def __init__(self, backend: str, name: str, path: str, sample_rate: float = 30.0) -> None:
+    def __init__(
+        self, name: str, path: str, backend: str = "opencv", sample_rate: float = 30.0
+    ) -> None:
         super().__init__(name, sample_rate)
         backend = backend.lower()
         if backend == "opencv":

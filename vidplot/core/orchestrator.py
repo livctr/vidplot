@@ -170,6 +170,7 @@ class AnnotationOrchestrator:
         fps : float, optional
             Frames per second for video output (default: 30.0).
         """
+        import pdb ; pdb.set_trace()
 
         # Determine output type by file extension
         video_exts = {".mp4", ".avi", ".mov", ".mkv"}
@@ -180,6 +181,7 @@ class AnnotationOrchestrator:
         is_image = ext in image_exts
         is_video = ext in video_exts
         assert is_image or is_video, f"Got extension {ext}"
+        assert not (is_image and is_video), "Cannot write both image and video at the same time."
 
         height, width, _ = self._canvas_shape
         if is_video:
@@ -202,13 +204,16 @@ class AnnotationOrchestrator:
         # Prepare dynamic streamer iterators and buffers
         streamer_iters = {name: iter(s) for name, s in dynamic_streamers.items()}
         streamer_buffers = {}
+        streamer_hit_last = {name: False for name in dynamic_streamers}
         streamer_done = {name: False for name in dynamic_streamers}
 
         # For progress bar, use min(approx_duration) if any finite, else 1.0
         # Only consider dynamic streamers for duration calculation
         approx_durations = [s.approx_duration for s in dynamic_streamers.values()]
-        finite_durations = [d for d in approx_durations if d < float("inf")]
-        bar_duration = min(finite_durations) if finite_durations else 1.0
+        assert all(approx_duration < float("inf") for approx_duration in approx_durations), \
+            "All dynamic streamers must have a finite approx_duration."
+        bar_duration = min(approx_durations)
+
         n_frames = int(bar_duration * fps)
 
         orchestrator_time = 0.0
@@ -219,49 +224,41 @@ class AnnotationOrchestrator:
         # Add static data (no iteration needed)
         data_dict.update(static_data)
 
+        import pdb ; pdb.set_trace()
+
         with tqdm(total=n_frames, desc="Rendering video") as pbar:
             while True:
 
                 # Process dynamic streamers
                 for name, it in streamer_iters.items():
-                    if streamer_done[name]:
-                        data_dict[name] = None
-                        continue
 
                     # Buffer: (prev_time, prev_data), (next_time, next_data)
-                    buf = streamer_buffers.get(name, None)
+                    buf = streamer_buffers.get(name, [])
 
-                    # Fill buffer if needed
                     while True:
-                        if buf is None:
-                            try:
-                                t1, d1 = next(it)
-                                t2, d2 = next(it)
-                                buf = [(t1, d1), (t2, d2)]
-                            except StopIteration:
-                                streamer_done[name] = True
-                                data_dict[name] = None
-                                break
+                        try:
+                            t, d = next(it)
+                            if len(buf) == 2:
+                                buf.pop(0)
+                            buf.append((t, d))
+                        except StopIteration:
+                            streamer_hit_last[name] = True
 
-                        t1, d1 = buf[0]
-                        t2, d2 = buf[1]
-
-                        if t2 >= orchestrator_time:
+                        if buf and buf[-1][0] >= orchestrator_time:
                             # Pick closer
-                            if abs(t1 - orchestrator_time) <= abs(t2 - orchestrator_time):
-                                data_dict[name] = d1
+                            if len(buf) == 1:
+                                data_dict[name] = buf[0][1]
                             else:
-                                data_dict[name] = d2
-                            streamer_buffers[name] = buf
+                                t1, d1 = buf[0]
+                                t2, d2 = buf[1]
+                                if abs(t1 - orchestrator_time) <= abs(t2 - orchestrator_time):
+                                    data_dict[name] = d1
+                                else:
+                                    data_dict[name] = d2
                             break
                         else:
-                            # Advance buffer
-                            try:
-                                t_next, d_next = next(it)
-                                buf = [buf[1], (t_next, d_next)]
-                            except StopIteration:
+                            if streamer_hit_last[name]:
                                 streamer_done[name] = True
-                                data_dict[name] = None
                                 break
 
                     streamer_buffers[name] = buf
@@ -280,13 +277,15 @@ class AnnotationOrchestrator:
                     bbox = (x1, y1, x2, y2)
                     canvas = r.render(data_dict[sname], bbox, canvas)
 
+                canvas = cv2.cvtColor(canvas, cv2.COLOR_RGB2BGR)
                 if is_image:
                     cv2.imwrite(outpath, canvas)
                     return
+                else:
+                    writer.write(canvas)
+                    orchestrator_time += 1.0 / fps
+                    frame_idx += 1
+                    pbar.update(1)
 
-                writer.write(canvas)
-                orchestrator_time += 1.0 / fps
-                frame_idx += 1
-                pbar.update(1)
-
-        writer.release()
+        if is_video:
+            writer.release()

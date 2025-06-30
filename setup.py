@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="vidplot",
-    version="0.1.0",
+    version="0.1.1",
     description="A video annotation visualizer for computer vision and data science workflows.",
     author="Victor Li",
     author_email="vhl2022@nyu.edu",
@@ -12,7 +12,7 @@ setup(
         "numpy>=1.20.0",
         "pandas>=1.3.0",
         "tqdm>=4.60.0",
-        "matplotlib>=3.4.0",
+        "matplotlib>=3.7.0",
     ],
     extras_require={
         "decord": ["decord>=0.6.0"],

@@ -29,7 +29,7 @@ if __name__ == "__main__":
     for outname in outnames:
 
         # Video streamer
-        vid_streamer = VideoStreamer("opencv", name="video", path=video_path, sample_rate=30.0)
+        vid_streamer = VideoStreamer("video", video_path, sample_rate=30.0)
 
         # Static tabular streamer, for displaying the blue/orange bar at the top
         label_streamer = StaticTabularStreamer(

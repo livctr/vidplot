@@ -18,7 +18,7 @@ label_dir = input_dir / "frame_labels"
 @pytest.mark.parametrize("video_file", ["moving_square.mp4", "static_test.mp4", "short_test.mp4"])
 def test_video_streamer(video_file, backend):
     video_path = video_dir / video_file
-    streamer = VideoStreamer(backend, name="vid", path=str(video_path), sample_rate=30.0)
+    streamer = VideoStreamer("vid", str(video_path), backend, sample_rate=30.0)
 
     if video_file == "moving_square.mp4":
         expected_size = (640, 480)

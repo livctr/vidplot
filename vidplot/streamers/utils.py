@@ -1,4 +1,10 @@
-from typing import Any, Callable, Optional, Tuple
+import numpy as np
+import pandas as pd
+import json
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+from pathlib import Path
+
+from typing import Callable
 
 
 def _stream_with_last_frame_handling(
@@ -114,3 +120,65 @@ def _stream_with_last_frame_handling(
         )
     else:
         raise ValueError(f"Unknown selection_method: {selection_method}")
+
+
+def _load_and_validate_data_source(
+    data_source: Union[pd.DataFrame, str, Dict[str, Any]],
+    data_col: str,
+    time_col: str,
+) -> Tuple[List[float], List[Any]]:
+    """
+    Loads time-series data from various formats and validates required columns.
+    """
+    if not data_col:
+        raise ValueError("`data_col` must be specified.")
+    if not time_col:
+        raise ValueError("`time_col` must be specified.")
+
+    def sort_by_time(timestamps: Iterable, values: Iterable):
+        if len(timestamps) == 0:
+            raise ValueError("Data source must contain at least 1 timestamp.")
+        sort_idx = np.argsort(timestamps)
+        timestamps = [timestamps[i] for i in sort_idx]
+        values = [values[i] for i in sort_idx]
+        return timestamps, values
+
+    if isinstance(data_source, pd.DataFrame):
+        if time_col not in data_source.columns or data_col not in data_source.columns:
+            raise ValueError(f"Missing required columns in DataFrame: {time_col}, {data_col}")
+        return sort_by_time(data_source[time_col], data_source[data_col])
+
+    elif isinstance(data_source, str):
+        path = Path(data_source)
+        if not path.exists():
+            raise FileNotFoundError(f"File not found: {data_source}")
+
+        if path.suffix.lower() == ".csv":
+            df = pd.read_csv(path)
+            if time_col not in df.columns or data_col not in df.columns:
+                raise ValueError(f"Missing required columns in CSV: {time_col}, {data_col}")
+            return sort_by_time(df[time_col], df[data_col])
+
+        elif path.suffix.lower() == ".npz":
+            npz = np.load(path, allow_pickle=True)
+            if time_col not in npz or data_col not in npz:
+                raise ValueError(f"Missing keys in NPZ: {time_col}, {data_col}")
+            return sort_by_time(npz[time_col], npz[data_col])
+
+        elif path.suffix.lower() == ".json":
+            with open(path, "r") as f:
+                data_dict = json.load(f)
+            if time_col not in data_dict or data_col not in data_dict:
+                raise ValueError(f"Missing keys in JSON: {time_col}, {data_col}")
+            return sort_by_time(data_dict[time_col], data_dict[data_col])
+
+        else:
+            raise ValueError(f"Unsupported file format: {path.suffix}")
+
+    elif isinstance(data_source, dict):
+        if time_col not in data_source or data_col not in data_source:
+            raise ValueError(f"Missing keys in dict: {time_col}, {data_col}")
+        return sort_by_time(data_source[time_col], data_source[data_col])
+
+    else:
+        raise TypeError(f"Unsupported data_source type: {type(data_source).__name__}")
