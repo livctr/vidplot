@@ -75,8 +75,6 @@ def test_full_encoding():
     for i, (original, decoded) in enumerate(zip(masks, decoded_masks)):
         assert np.array_equal(original, decoded)
 
-    return encoded_data
-
 
 def test_subsequent_frame_encoding():
     """Test subsequent frame encoding for video sequences."""
@@ -100,7 +98,7 @@ def test_subsequent_frame_encoding():
 
     # Encode as subsequent frame without metadata
     subsequent_frame_data = encode_segmentation_masks(
-        subsequent_ids, subsequent_masks, is_subsequent_frame=True, save_metadata=False
+        subsequent_ids, subsequent_masks, save_metadata=False
     )
 
     print(f"Subsequent frame encoded data keys: {list(subsequent_frame_data.keys())}")
@@ -160,7 +158,7 @@ def test_video_sequence():
     subsequent_frames_data = []
     for i in range(1, num_frames):
         frame_data = encode_segmentation_masks(
-            [video_ids[i]], [video_masks[i]], is_subsequent_frame=True, save_metadata=False
+            [video_ids[i]], [video_masks[i]], save_metadata=False
         )
         subsequent_frames_data.append(frame_data)
         print(f"Frame {i+1} encoded without metadata")

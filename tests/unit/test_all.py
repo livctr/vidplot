@@ -72,6 +72,7 @@ def test_annotated_video():
         label_bar_renderer = HorizontalLabelBarRenderer(
             name="label_bar",
             data_streamer=label_streamer,
+            label_to_color={0: (255, 0, 0), 1: (0, 255, 0)},
             grid_row=(2, 2),
             grid_column=(1, 1),
             height=20,

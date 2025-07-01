@@ -61,15 +61,16 @@ class ProgressRenderer(Renderer):
             raise ValueError("Progress value must be between 0.0 and 1.0.")
         data = max(0.0, min(1.0, data))  # Clamp to [0.0, 1.0]
 
-        x, y, w, h = bbox
-        progress_x = int(w * data)
+        x1, y1, x2, y2 = bbox
+        w = x2 - x1
+        progress_x = x1 + int(w * data)
 
         # Compute vertical bar position within the bounding box
         half_thick = self.thickness // 2
-        bar_x1 = x + max(0, progress_x - half_thick)
-        bar_x2 = x + min(w - 1, progress_x + half_thick)
-        bar_y1 = y
-        bar_y2 = y + h - 1
+        bar_x1 = max(x1, progress_x - half_thick)
+        bar_x2 = min(x2, progress_x + half_thick)
+        bar_y1 = y1
+        bar_y2 = y2
 
         # Draw vertical progress bar within the bbox
         cv2.rectangle(

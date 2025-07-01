@@ -67,7 +67,7 @@ def test_tabular_streamer():
             data_col="label",
             time_col="time",
             sample_rate=30.0,
-            stream_method="nearest",
+            stream_method="nearest_neighbor",
         )
         for data_source in data_sources
     ]

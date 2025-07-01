@@ -19,13 +19,17 @@ def canvas():
 
 
 def test_box_renderer(canvas):
-    data = [
-        {"box": [0.1, 0.1, 0.5, 0.5], "text_label": "A", "score": 0.9},
-        {"box": [0.6, 0.6, 0.9, 0.9], "id": 2, "score": 0.7},
-    ]
+    data = {
+        "shape": (CANVAS_SHAPE[0], CANVAS_SHAPE[1]),
+        "boxes": [
+            {"box": [10, 10, 50, 50], "text_label": "A", "score": 0.9, "id": 1},
+            {"box": [60, 60, 90, 90], "id": 2, "score": 0.7},
+        ],
+    }
     r = BoxRenderer(
         name="box",
         data_streamer=StaticDataStreamer("static", data),
+        id_to_color={1: (255, 0, 0), 2: (0, 255, 0)},
         grid_row=(1, 1),
         grid_column=(1, 1),
     )
@@ -88,6 +92,7 @@ def test_horizontal_label_bar_renderer(canvas):
     r = HorizontalLabelBarRenderer(
         name="bar",
         data_streamer=StaticDataStreamer("static", labels),
+        label_to_color={"A": (255, 0, 0), "B": (0, 255, 0), "C": (0, 0, 255)},
         grid_row=(1, 1),
         grid_column=(1, 1),
         height=20,

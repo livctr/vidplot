@@ -25,24 +25,24 @@ def paint_box_in_place(
         font_scale: The scale of the label font.
     """
     x1, y1, x2, y2 = bbox_coords
-    
+
     # Draw the main bounding box rectangle
     cv2.rectangle(image_array, (x1, y1), (x2, y2), color, thickness)
-    
+
     if label:
         # Set up font and calculate the size of the text
         font = cv2.FONT_HERSHEY_SIMPLEX
         (text_width, text_height), baseline = cv2.getTextSize(label, font, font_scale, thickness)
-        
+
         # Create a filled rectangle for the label's background
         label_bg_y2 = y1
         label_bg_y1 = y1 - text_height - baseline
-        
+
         # Ensure the label does not go off the top of the screen
         label_bg_y1 = max(label_bg_y1, 0)
-        
+
         cv2.rectangle(image_array, (x1, label_bg_y1), (x1 + text_width, label_bg_y2), color, -1)
-        
+
         # Put the label text on top of the background
         # Use white text for better contrast against a colored background
         text_y = y1 - baseline // 2
@@ -75,7 +75,7 @@ class BoxRenderer(Renderer):
         super().__init__(name, data_streamer, grid_row, grid_column, z_index=z_index)
         assert resize_mode in ("fit", "stretch", "center")
         assert box_representation_format in ("xyxy", "xywh")
-        
+
         self.id_to_color = id_to_color
         self.box_representation_format = box_representation_format
         self.label_box = label_box
@@ -107,12 +107,15 @@ class BoxRenderer(Renderer):
         if data is None or not data.get("boxes"):
             return canvas
 
-        fh, fw = data["shape"]
-        
+        # Store shape if not already stored, or use stored shape
+        if not hasattr(self, "_cached_shape"):
+            self._cached_shape = data["shape"]
+        fh, fw = self._cached_shape
+
         for item in data["boxes"]:
             box_coords = item["box"]
             box_id = item.get("id")
-            
+
             if box_id is None or box_id not in self.id_to_color:
                 continue
 
@@ -140,7 +143,7 @@ class BoxRenderer(Renderer):
                 nx1, ny1 = int(x1 * scale + x_off), int(y1 * scale + y_off)
                 nx2, ny2 = int(x2 * scale + x_off), int(y2 * scale + y_off)
                 final_box = (nx1, ny1, nx2, ny2)
-            
+
             elif self.resize_mode == "center":
                 x_off, y_off = (target_w - fw) // 2, (target_h - fh) // 2
                 nx1, ny1 = int(x1 + x_off), int(y1 + y_off)
@@ -167,7 +170,7 @@ class BoxRenderer(Renderer):
                     label = f"ID: {box_id}"
                     if score is not None:
                         label += f" ({score:.2f})"
-                
+
                 paint_box_in_place(
                     canvas,
                     (abs_x1, abs_y1, abs_x2, abs_y2),

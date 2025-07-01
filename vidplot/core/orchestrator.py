@@ -170,7 +170,6 @@ class AnnotationOrchestrator:
         fps : float, optional
             Frames per second for video output (default: 30.0).
         """
-        import pdb ; pdb.set_trace()
 
         # Determine output type by file extension
         video_exts = {".mp4", ".avi", ".mov", ".mkv"}
@@ -210,8 +209,6 @@ class AnnotationOrchestrator:
         # For progress bar, use min(approx_duration) if any finite, else 1.0
         # Only consider dynamic streamers for duration calculation
         approx_durations = [s.approx_duration for s in dynamic_streamers.values()]
-        assert all(approx_duration < float("inf") for approx_duration in approx_durations), \
-            "All dynamic streamers must have a finite approx_duration."
         bar_duration = min(approx_durations)
 
         n_frames = int(bar_duration * fps)
@@ -224,8 +221,6 @@ class AnnotationOrchestrator:
         # Add static data (no iteration needed)
         data_dict.update(static_data)
 
-        import pdb ; pdb.set_trace()
-
         with tqdm(total=n_frames, desc="Rendering video") as pbar:
             while True:
 
@@ -236,13 +231,14 @@ class AnnotationOrchestrator:
                     buf = streamer_buffers.get(name, [])
 
                     while True:
-                        try:
-                            t, d = next(it)
-                            if len(buf) == 2:
-                                buf.pop(0)
-                            buf.append((t, d))
-                        except StopIteration:
-                            streamer_hit_last[name] = True
+                        if not streamer_hit_last[name]:
+                            try:
+                                t, d = next(it)
+                                if len(buf) == 2:
+                                    buf.pop(0)
+                                buf.append((t, d))
+                            except StopIteration:
+                                streamer_hit_last[name] = True
 
                         if buf and buf[-1][0] >= orchestrator_time:
                             # Pick closer
