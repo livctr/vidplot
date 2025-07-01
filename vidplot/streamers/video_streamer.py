@@ -10,10 +10,10 @@ class VideoStreamer(DataStreamer, SizedStreamerProtocol):
         name: str,
         path: str,
         backend: str = "opencv",  # one of 'opencv', 'pyav', 'decord'
-        sample_rate: float = 30.0,
+        sample_rate: Optional[float] = None,
         duration: Optional[float] = None,
         stream_method: str = "nearest_neighbor",
-        tol: float = 1e-5,
+        tol: float = 1e-3,
     ) -> None:
         # Validate backend and stream method
         assert backend in ["opencv", "pyav", "decord"], f"Unsupported backend '{backend}'"
@@ -22,12 +22,6 @@ class VideoStreamer(DataStreamer, SizedStreamerProtocol):
             "LOCF",
         ], f"Unsupported stream method '{stream_method}'"
 
-        super().__init__(name, sample_rate)
-        self.backend = backend
-        self._stream_method = stream_method
-        self._tol = tol
-        self._seeked_num = 0
-        self._buf: list[Tuple[float, np.ndarray]] = []
 
         # Open and inspect video based on backend
         if backend == "opencv":
@@ -62,6 +56,17 @@ class VideoStreamer(DataStreamer, SizedStreamerProtocol):
 
         if self.fps <= 0:
             raise ValueError("Could not determine FPS for backend '{backend}'")
+
+        self.backend = backend
+        self._stream_method = stream_method
+        self._tol = tol
+        self._seeked_num = 0
+        self._buf: list[Tuple[float, np.ndarray]] = []
+
+        if sample_rate is None:
+            sample_rate = self.fps
+
+        super().__init__(name, sample_rate)
 
         # Determine duration
         if duration is not None:

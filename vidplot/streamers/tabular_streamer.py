@@ -16,19 +16,23 @@ class TabularStreamer(DataStreamer, KnownDurationProtocol):
         data_source: Union[pd.DataFrame, str, Dict[str, Iterable]],
         data_col: str,
         time_col: str,
-        sample_rate: float = 30.0,
+        sample_rate: Optional[float] = None,
         duration: Optional[float] = None,
         stream_method: str = "nearest_neighbor",
-        tol: float = 1e-5,
+        tol: float = 1e-3,
     ) -> None:
-        super().__init__(name=name, sample_rate=sample_rate)
-
         # Load and validate the tabular source
         self._timestamps, self._data = _load_and_validate_data_source(
             data_source, data_col, time_col
         )
-        if abs(self._timestamps[0] - 0) > tol:
+        if abs(self._timestamps[0] - 0) >= tol:
             raise ValueError(f"Expected first timestamp close to 0, got {self._timestamps[0]:.5f}")
+        
+        if sample_rate is None:
+            assert len(self._timestamps) >= 2, "At least 2 data points are required if sample rate is not provided."
+            sample_rate = (self._timestamps[-1] - self._timestamps[0]) / (len(self._timestamps) - 1)
+
+        super().__init__(name=name, sample_rate=sample_rate)
 
         # Determine duration
         if duration is not None:
