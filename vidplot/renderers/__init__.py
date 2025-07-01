@@ -3,8 +3,7 @@ from .string_renderer import StringRenderer
 from .box_renderer import BoxRenderer
 from .coco_keypoints_3d_renderer import COCOKeypoints3DRenderer
 from .coco_keypoints_renderer import COCOKeypointsRenderer
-from .progress_renderer import ProgressRenderer
-from .horizontal_label_bar_renderer import HorizontalLabelBarRenderer
+from .label_bar_renderer import LabelBarRenderer
 from .segmentation_renderer import SegmentationRenderer
 
 __all__ = [
@@ -14,7 +13,6 @@ __all__ = [
     "BoxRenderer",
     "COCOKeypoints3DRenderer",
     "COCOKeypointsRenderer",
-    "ProgressRenderer",
-    "HorizontalLabelBarRenderer",
+    "LabelBarRenderer",
     "SegmentationRenderer",
 ]

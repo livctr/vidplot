@@ -6,16 +6,10 @@ import pytest
 from vidplot.core import AnnotationOrchestrator, StaticDataStreamer
 from vidplot.streamers import (
     VideoStreamer,
-    ProgressStreamer,
-    StaticTabularStreamer,
-    TabularStreamer,
 )
 from vidplot.renderers import (
     StringRenderer,
-    HorizontalLabelBarRenderer,
-    ProgressRenderer,
 )
-from vidplot.renderers.utils import get_tab10_color
 
 
 def test_annotated_video():
@@ -149,8 +143,8 @@ def test_label_bars():
 
     # --- Streamers ---
     from vidplot.core import StaticDataStreamer
-    from vidplot.streamers import ProgressStreamer, TabularStreamer, StaticTabularStreamer
-    from vidplot.renderers.rgb_renderer import RGBRenderer
+    from vidplot.streamers import StaticDataStreamer, LabelBarStreamer, TimestampedDataStreamer
+    from vidplot.renderers import StringRenderer, LabelBarRenderer
 
     # Title
     title = "Label Bar Demo"
@@ -163,147 +157,58 @@ def test_label_bars():
     )
 
     # Label bar streamer
-    bar1_streamer = StaticTabularStreamer(
+    bar1_streamer = LabelBarStreamer(
         "bar1",
         {"label": bar1_labels, "timestamp": bar1_timestamps},
         data_col="label",
         time_col="timestamp",
         duration=bar1_duration,
     )
-    bar1_renderer = HorizontalLabelBarRenderer(
+    bar1_renderer = LabelBarRenderer(
         name="label_bar1",
         data_streamer=bar1_streamer,
         label_to_color=LABEL_TO_COLOR,
-        grid_row=(3, 3),
-        grid_column=(1, 1),
-    )
-    progress1 = ProgressStreamer("progress1", bar1_streamer, sample_rate=30.0)
-    progress1_renderer = ProgressRenderer(
-        name="progress1",
-        data_streamer=progress1,
-        grid_row=(3, 3),
-        grid_column=(1, 1),
-        bar_color=(0, 0, 0),
-        thickness=2,
-        z_index=1,
-    )
-    # Duration text streamer/renderer for bar1
-    bar1_duration_text = f"{bar1_duration_sec:.2f}s"
-    bar1_duration_streamer = StaticDataStreamer("bar1_duration_text", bar1_duration_text)
-    bar1_text_renderer = StringRenderer(
-        name="bar1_text",
-        data_streamer=bar1_duration_streamer,
         grid_row=(2, 2),
         grid_column=(1, 1),
-        font_scale=0.5,
-        font_color=(0, 0, 0),
-        thickness=1,
-        z_index=2,
-    )
-    # Dynamic label text streamer/renderer for bar1
-    bar1_label_text_streamer = TabularStreamer(
-        name="bar1_label_text",
-        data_source={"label": bar1_labels, "timestamp": bar1_timestamps},
-        data_col="label",
-        time_col="timestamp",
-        duration=bar1_duration,
-    )
-    bar1_label_text_renderer = StringRenderer(
-        name="bar1_label_text",
-        data_streamer=bar1_label_text_streamer,
-        grid_row=(3, 3),
-        grid_column=(1, 1),
-        font_scale=0.5,
-        font_color=(128, 0, 0),
-        thickness=1,
         z_index=0,
+        height=20,
+        progress_bar_color=(0, 0, 0),
+        write_sampled_data_str=True,
     )
 
-    # --- Label bar 2 ---
-    bar2_streamer = StaticTabularStreamer(
+    bar2_streamer = LabelBarStreamer(
         "bar2",
         {"label": bar2_labels, "timestamp": bar2_timestamps},
         data_col="label",
         time_col="timestamp",
-        duration=bar2_duration,
+        duration=bar1_duration,
     )
-    bar2_renderer = HorizontalLabelBarRenderer(
+    bar2_renderer = LabelBarRenderer(
         name="label_bar2",
         data_streamer=bar2_streamer,
         label_to_color=LABEL_TO_COLOR,
-        grid_row=(4, 4),
+        grid_row=(3, 3),
         grid_column=(1, 1),
-    )
-    progress2 = ProgressStreamer("progress2", bar2_streamer, sample_rate=30.0)
-    progress2_renderer = ProgressRenderer(
-        name="progress2",
-        data_streamer=progress2,
-        grid_row=(4, 4),
-        grid_column=(1, 1),
-        bar_color=(0, 0, 0),
-        thickness=2,
-        z_index=1,
-    )
-    # Duration text streamer/renderer for bar2
-    bar2_duration_text = f"{bar2_duration_sec:.2f}s"
-    bar2_duration_streamer = StaticDataStreamer("bar2_duration_text", bar2_duration_text)
-    bar2_text_renderer = StringRenderer(
-        name="bar2_text",
-        data_streamer=bar2_duration_streamer,
-        grid_row=(4, 4),
-        grid_column=(1, 1),
-        font_scale=0.5,
-        font_color=(0, 0, 0),
-        thickness=1,
-        z_index=2,
-    )
-    # Dynamic label text streamer/renderer for bar2
-    bar2_label_text_streamer = TabularStreamer(
-        name="bar2_label_text",
-        data_source={"label": bar2_labels, "timestamp": bar2_timestamps},
-        data_col="label",
-        time_col="timestamp",
-        duration=bar2_duration,
-    )
-    bar2_label_text_renderer = StringRenderer(
-        name="bar2_label_text",
-        data_streamer=bar2_label_text_streamer,
-        grid_row=(5, 5),
-        grid_column=(1, 1),
-        font_scale=0.5,
-        font_color=(0, 128, 0),
-        thickness=1,
         z_index=0,
+        height=20,
+        progress_bar_color=(0, 0, 0),
+        write_sampled_data_str=True,
     )
 
-    # --- Grid ---
-    grid_rows = [40, 20, 20, 20, 20, 20]  # title, bar1 text, bar1, bar2 text, bar2, video
+    grid_rows = [40, 20, 20]
     grid_cols = [width]
     orch = AnnotationOrchestrator(grid_rows, grid_cols, gap=0)
-
-    # --- Orchestrator setup ---
     orch.set_annotators(
-        [
-            bar1_streamer, bar2_streamer, progress1, progress2, title_streamer,
-            bar1_duration_streamer, bar2_duration_streamer,
-            bar1_label_text_streamer, bar2_label_text_streamer
-        ],
-        [
-            bar1_renderer, progress1_renderer, bar2_renderer, progress2_renderer, title_renderer,
-            bar1_text_renderer, bar2_text_renderer, bar1_label_text_renderer, bar2_label_text_renderer,
-        ],
+        [bar1_streamer, bar2_streamer, title_streamer],
+        [bar1_renderer, bar2_renderer, title_renderer],
         [
             ("bar1", "label_bar1"),
-            ("progress1", "progress1"),
-            ("bar1_duration_text", "bar1_text"),
-            ("bar1_label_text", "bar1_label_text"),
             ("bar2", "label_bar2"),
-            ("progress2", "progress2"),
-            ("bar2_duration_text", "bar2_text"),
-            ("bar2_label_text", "bar2_label_text"),
             ("title", "title"),
         ],
     )
+
+    # --- Grid ---
     outpath_mp4 = "tests/output/all/label_bar_demo.mp4"
     orch.write(outpath_mp4, fps=30.0)
     assert os.path.exists(outpath_mp4)

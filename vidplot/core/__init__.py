@@ -3,7 +3,6 @@ from .renderer import Renderer
 from .streamer import (
     DataStreamer,
     StaticDataStreamer,
-    KnownDurationProtocol,
     SizedStreamerProtocol,
 )
 
@@ -13,6 +12,5 @@ __all__ = [
     "Renderer",
     "DataStreamer",
     "StaticDataStreamer",
-    "KnownDurationProtocol",
     "SizedStreamerProtocol",  # <- makes it a public API
 ]

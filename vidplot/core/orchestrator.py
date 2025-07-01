@@ -16,10 +16,14 @@ class AnnotationOrchestrator:
         grid_template_rows: List[int],
         grid_template_columns: List[int],
         gap: int = 0,
+        stream_method: str = "nearest_neighbor",
+        round_decimals: int = 3,
     ):
         self.grid_template_rows = grid_template_rows
         self.grid_template_columns = grid_template_columns
         self.gap = gap
+        self.stream_method = stream_method
+        self.round_decimals = round_decimals
         self.streamers: Dict[str, DataStreamer] = {}
         self.renderers: Dict[str, Renderer] = {}
         self.routes: List[Tuple[str, str]] = []
@@ -206,10 +210,11 @@ class AnnotationOrchestrator:
         streamer_hit_last = {name: False for name in dynamic_streamers}
         streamer_done = {name: False for name in dynamic_streamers}
 
-        # For progress bar, use min(approx_duration) if any finite, else 1.0
+        # For tqdm bar, use min(duration) if any finite, else 1.0
         # Only consider dynamic streamers for duration calculation
-        approx_durations = [s.approx_duration for s in dynamic_streamers.values()]
+        approx_durations = [s.duration for s in dynamic_streamers.values()]
         bar_duration = min(approx_durations)
+        assert bar_duration < float("inf"), "At least one dynamic streamer must have a finite duration."
 
         n_frames = int(bar_duration * fps)
 
@@ -224,39 +229,47 @@ class AnnotationOrchestrator:
         with tqdm(total=n_frames, desc="Rendering video") as pbar:
             while True:
 
+                rounded_orchestrator_time = round(orchestrator_time, self.round_decimals)
+
                 # Process dynamic streamers
                 for name, it in streamer_iters.items():
 
                     # Buffer: (prev_time, prev_data), (next_time, next_data)
                     buf = streamer_buffers.get(name, [])
 
-                    while True:
-                        if not streamer_hit_last[name]:
-                            try:
-                                t, d = next(it)
-                                if len(buf) == 2:
-                                    buf.pop(0)
-                                buf.append((t, d))
-                            except StopIteration:
-                                streamer_hit_last[name] = True
-
-                        if buf and buf[-1][0] >= orchestrator_time:
-                            # Pick closer
-                            if len(buf) == 1:
-                                data_dict[name] = buf[0][1]
-                            else:
-                                t1, d1 = buf[0]
-                                t2, d2 = buf[1]
-                                if abs(t1 - orchestrator_time) <= abs(t2 - orchestrator_time):
-                                    data_dict[name] = d1
-                                else:
-                                    data_dict[name] = d2
+                    # Fill a buffer of length 2 until we reach or pass the orchestrator time
+                    while not streamer_hit_last[name] and (
+                        not buf or buf[-1][0] < rounded_orchestrator_time
+                    ):
+                        try:
+                            t, d = next(it)
+                            if len(buf) == 2:
+                                buf.pop(0)
+                            buf.append((round(t, self.round_decimals), d))
+                        except StopIteration:
+                            streamer_hit_last[name] = True
                             break
+                    
+                    # If the orchestrator time has not passed the last buffered time,
+                    # return the closest frame based on the streaming method
+                    if buf and buf[-1][0] >= rounded_orchestrator_time:
+                        # We have at least one frame past or at orchestrator time
+                        if self.stream_method == "locf" or len(buf) == 1:
+                            data_dict[name] = buf[0][1]
                         else:
-                            if streamer_hit_last[name]:
-                                streamer_done[name] = True
-                                break
+                            t1, d1 = buf[0]
+                            t2, d2 = buf[1]
+                            if abs(t1 - rounded_orchestrator_time) <= abs(t2 - rounded_orchestrator_time):
+                                data_dict[name] = d1
+                            else:
+                                data_dict[name] = d2
+                    # Otherwise, (1) we've hit the end of the stream or
+                    # (2) the buffer doesn't have any data that is >= orchestrator time.
+                    # In both cases, we are done with this streamer.
+                    else:
+                        streamer_done[name] = True
 
+                    # Update the bufer
                     streamer_buffers[name] = buf
 
                 # If any dynamic streamer is done, break

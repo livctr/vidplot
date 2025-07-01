@@ -5,27 +5,25 @@ from typing import Any, Dict, Protocol, Tuple
 class DataStreamer(ABC):
     """Abstract base class to sequentially traverse data based on time.
 
-    Provides an iterable interface for streaming data points at a fixed sample rate.
-    Subclasses must implement the `approx_duration` property and the `stream` method.
+    Provides an iterable interface for streaming data points.
+    Subclasses must implement the `duration` property and the `stream` method.
 
     Attributes:
         name (str): Name of the DataStreamer, for identification.
-        sample_rate (float): The rate in Hz at which to sample and yield data.
     """
 
-    def __init__(self, name: str, sample_rate: float = 30.0) -> None:
-        if sample_rate <= 0:
-            raise ValueError("Sample rate must be positive.")
+    def __init__(self, name: str) -> None:
         self.name = name
-        self.sample_rate = sample_rate
-        self._timestep = 1.0 / sample_rate
-        self._clock = 0.0
 
     @property
     @abstractmethod
-    def approx_duration(self) -> float:
-        """Approximate duration of the datastream in seconds."""
-        raise NotImplementedError("Subclasses must implement approx_duration")
+    def duration(self) -> float:
+        """
+        Duration of the datastream in seconds. This is the total time
+        over which the data is valid; this property is solely used to
+        give the user an idea of approximately how long the data will be streamed.
+        """
+        raise NotImplementedError("Subclasses must implement duration.")
 
     @property
     def metadata(self) -> Dict[str, Any]:
@@ -36,22 +34,9 @@ class DataStreamer(ABC):
         return self
 
     @abstractmethod
-    def stream(self) -> Any:
-        """Return the data point at the current clock time.
-
-        Returns:
-            The data point corresponding to the internal clock time.
-        Raises:
-            StopIteration: when the end of the stream is reached.
-        """
-        raise NotImplementedError("Subclasses must implement stream()")
-
     def __next__(self) -> Tuple[float, Any]:
-        """Retrieve the next item in the sequence based on the sample_rate setting."""
-        time = self._clock
-        data = self.stream()
-        self._clock += self._timestep
-        return time, data
+        """Retrieve the next time and item in the sequence."""
+        raise NotImplementedError("Subclasses must implement __next__ method")
 
 
 class SizedStreamerProtocol(Protocol):
@@ -61,14 +46,6 @@ class SizedStreamerProtocol(Protocol):
         raise NotImplementedError("Size needs to be implemented for a SizedStreamerProtocol.")
 
 
-class KnownDurationProtocol(Protocol):
-    @property
-    @abstractmethod
-    def duration(self) -> float:
-        """Subclasses must implement."""
-        raise NotImplementedError("Duration needs to be implemented for a KnownDurationProtocol.")
-
-
 class StaticDataStreamer(DataStreamer):
     """Subclass for data streamers that always return the same data (static)."""
 
@@ -76,13 +53,13 @@ class StaticDataStreamer(DataStreamer):
         self,
         name: str,
         data: Any,
-        sample_rate: float = 30.0,
     ):
-        super().__init__(name=name, sample_rate=sample_rate)
+        super().__init__(name=name)
         self._data = data
+        self._sent = False
 
     @property
-    def approx_duration(self) -> float:
+    def duration(self) -> float:
         """Static data streams are assumed to be infinite in duration."""
         return float("inf")
 
@@ -95,3 +72,11 @@ class StaticDataStreamer(DataStreamer):
             "data_type": type(self._data).__name__,
             "static": True,
         }
+
+    def __next__(self) -> Tuple[float, Any]:
+        """Return the static data with a dummy timestamp."""
+        if not self._sent:
+            self._sent = True
+            return 0.0, self._data
+        else:
+            raise StopIteration("StaticDataStreamer only yields data once.")
