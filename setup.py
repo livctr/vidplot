@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="vidplot",
-    version="0.1.1",
+    version="0.1.2",
     description="A video annotation visualizer for computer vision and data science workflows.",
     author="Victor Li",
     author_email="vhl2022@nyu.edu",

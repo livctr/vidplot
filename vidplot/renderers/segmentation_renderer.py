@@ -1,4 +1,4 @@
-from typing import Any, Tuple, Dict
+from typing import Any, Tuple, Dict, Optional
 import cv2
 import numpy as np
 
@@ -62,47 +62,41 @@ def paint_segmentation_mask_in_place(image_array, mask_array, alpha=0.5, color=(
 
 class SegmentationRenderer(Renderer):
     """
-    A renderer for overlaying decoded segmentation masks onto a video frame.
+    Overlay segmentation masks onto a rendered frame.
 
-    This renderer works in conjunction with another renderer (like RGBRenderer)
-    that draws the base video frame. It takes encoded segmentation data,
-    decodes it, and paints the masks over the existing canvas content.
-    It should be given a higher z_index to ensure it draws on top.
+    Intended to be attached to an RGBRenderer, so it reuses its bbox.
+
+    Args:
+        name: Unique renderer name.
+        data_streamer: Supplies segmentation mask (2D array of IDs).
+        id_to_color: Optional mapping from integer IDs to BGR colors.
+                     If None, random distinct colors are generated.
+        alpha: Opacity of the overlay, between 0.0 (transparent) and 1.0 (opaque).
     """
 
     def __init__(
         self,
         name: str,
         data_streamer: DataStreamer,
-        id_to_color: Dict[int, Tuple[int, int, int]],
-        alpha: float,
-        grid_row: Tuple[int, int],
-        grid_column: Tuple[int, int],
-        resize_mode: str = "fit",
-        z_index: int = 1,  # Default to 1 to render on top of a base layer
+        id_to_color: Optional[Dict[int, Tuple[int, int, int]]] = None,
+        alpha: float = 0.5,
     ):
-        super().__init__(name, data_streamer, grid_row, grid_column, z_index=z_index)
-        assert resize_mode in (
-            "fit",
-            "stretch",
-            "center",
-        ), "resize_mode must be 'fit', 'stretch', or 'center'"
-        self.id_to_color = id_to_color
+        super().__init__(name, data_streamer)
+        self.id_to_color = id_to_color or {}
         self.alpha = alpha
-        self.resize_mode = resize_mode
-        self.reference_data = None  # To store metadata from the first frame
 
+    @property
     def _default_size(self) -> Tuple[int, int]:
+        # fallback if no parent bbox is given
         return (100, 100)
 
-    def _render(self, data: Any, bbox: Tuple[int, int, int, int], canvas: Any) -> Any:
-        """
-        Renders segmentation masks on top of the existing canvas content.
-
-        This method decodes RLE segmentation data, resizes the resulting masks
-        to align with the video frame in the target bounding box, and then
-        paints them onto the canvas.
-        """
+    def _render(
+        self,
+        data: Any,
+        bbox: Tuple[int, int, int, int],
+        canvas: Any,
+    ) -> Any:
+        mask = np.array(data)
         x1, y1, x2, y2 = bbox
         target_w, target_h = x2 - x1, y2 - y1
 
@@ -129,54 +123,10 @@ class SegmentationRenderer(Renderer):
 
             color = self.id_to_color[seg_id]
 
-            # Resize the mask and apply it to the correct region of the canvas
-            if self.resize_mode == "stretch":
-                resized_mask = cv2.resize(
-                    mask, (target_w, target_h), interpolation=cv2.INTER_NEAREST
-                )
-                target_view = canvas[y1:y2, x1:x2, :]
-                paint_segmentation_mask_in_place(
-                    target_view, resized_mask, alpha=self.alpha, color=color
-                )
-
-            elif self.resize_mode == "fit":
-                scale = min(target_w / fw, target_h / fh)
-                new_w, new_h = int(fw * scale), int(fh * scale)
-
-                y_off = (target_h - new_h) // 2
-                x_off = (target_w - new_w) // 2
-
-                resized_mask = cv2.resize(mask, (new_w, new_h), interpolation=cv2.INTER_NEAREST)
-                target_sub_view = canvas[
-                    y1 + y_off : y1 + y_off + new_h, x1 + x_off : x1 + x_off + new_w, :
-                ]
-                paint_segmentation_mask_in_place(
-                    target_sub_view, resized_mask, alpha=self.alpha, color=color
-                )
-
-            elif self.resize_mode == "center":
-                y_off = (target_h - fh) // 2
-                x_off = (target_w - fw) // 2
-
-                src_y_start = max(0, -y_off)
-                src_x_start = max(0, -x_off)
-                dst_y_start = max(0, y_off)
-                dst_x_start = max(0, x_off)
-
-                h_clip = min(fh - src_y_start, target_h - dst_y_start)
-                w_clip = min(fw - src_x_start, target_w - dst_x_start)
-
-                if h_clip > 0 and w_clip > 0:
-                    cropped_mask = mask[
-                        src_y_start : src_y_start + h_clip, src_x_start : src_x_start + w_clip
-                    ]
-                    target_sub_view = canvas[
-                        y1 + dst_y_start : y1 + dst_y_start + h_clip,
-                        x1 + dst_x_start : x1 + dst_x_start + w_clip,
-                        :,
-                    ]
-                    paint_segmentation_mask_in_place(
-                        target_sub_view, cropped_mask, alpha=self.alpha, color=color
-                    )
+            resized_mask = cv2.resize(mask, (target_w, target_h), interpolation=cv2.INTER_NEAREST)
+            target_view = canvas[y1:y2, x1:x2, :]
+            paint_segmentation_mask_in_place(
+                target_view, resized_mask, alpha=self.alpha, color=color
+            )
 
         return canvas

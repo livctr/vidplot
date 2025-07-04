@@ -1,12 +1,10 @@
 import json
 import pytest
 from pathlib import Path
-from vidplot.core import StaticDataStreamer
 from vidplot.streamers import (
     VideoStreamer,
-    TabularStreamer,
-    StaticTabularStreamer,
-    ProgressStreamer,
+    TimestampedDataStreamer,
+    StaticDataStreamer,
 )
 
 input_dir = Path("tests/input")
@@ -18,28 +16,28 @@ label_dir = input_dir / "frame_labels"
 @pytest.mark.parametrize("video_file", ["moving_square.mp4", "static_test.mp4", "short_test.mp4"])
 def test_video_streamer(video_file, backend):
     video_path = video_dir / video_file
-    streamer = VideoStreamer("vid", str(video_path), backend, sample_rate=30.0)
+    streamer = VideoStreamer("vid", str(video_path), backend)
 
     if video_file == "moving_square.mp4":
-        expected_size = (640, 480)
+        expected_size = (480, 640)
         expected_duration = 5.0
     elif video_file == "static_test.mp4":
-        expected_size = (320, 240)
+        expected_size = (240, 320)
         expected_duration = 3.0
     elif video_file == "short_test.mp4":
-        expected_size = (320, 240)
+        expected_size = (240, 320)
         expected_duration = 2.0
     else:
         raise ValueError(f"Unknown test video: {video_file}")
     assert streamer.size == expected_size  # (W, H)
-    assert abs(streamer.approx_duration - expected_duration) <= 1e-5
+    assert abs(streamer.duration - expected_duration) <= 1e-5
 
     cnt = 0
     for t, frame in streamer:
         assert frame is not None
         assert frame.shape == (
-            expected_size[1],
             expected_size[0],
+            expected_size[1],
             3,
         )  # (H, W, 3)
         print(t, cnt)
@@ -47,9 +45,8 @@ def test_video_streamer(video_file, backend):
     assert cnt > 0
 
 
-def test_tabular_streamer():
-
-    # Test 4 different loading methods
+def test_timestamped_streamer_legacy():
+    # Test legacy API (data_source, data_col, time_col)
     dict_path = label_dir / "moving_square_dict.json"
     with open(dict_path) as f:
         data = json.load(f)
@@ -61,13 +58,11 @@ def test_tabular_streamer():
     ]
     methods = ["csv", "json", "npz", "dictionary"]
     streamers = [
-        TabularStreamer(
+        TimestampedDataStreamer(
             name="tabular_csv",
             data_source=data_source,
-            data_col="label",
-            time_col="time",
-            sample_rate=30.0,
-            stream_method="nearest_neighbor",
+            time="time",
+            data="label",
         )
         for data_source in data_sources
     ]
@@ -91,7 +86,6 @@ def test_tabular_streamer():
                 rle.append((prev, count))
                 prev = val
                 count = 1
-
         rle.append((prev, count))
 
         # One second off then one second on
@@ -105,48 +99,49 @@ def test_tabular_streamer():
             ), f"Error with loading method: {method}. Run of {label}'s is {runlen}, expected ~30"
 
 
+def test_timestamped_streamer_new_api():
+    # Test new unified API (time, data)
+    import pandas as pd
+
+    times = [0, 1, 2, 3, 4, 5]
+    labels = [0, 0, 1, 1, 0, 0]
+    df = pd.DataFrame({"time": times, "label": labels})
+    streamer = TimestampedDataStreamer(
+        name="new_api",
+        data_source=df,
+        time="time",
+        data="label",
+    )
+    out_times = []
+    out_labels = []
+    for t, v in streamer:
+        out_times.append(t)
+        out_labels.append(v)
+    assert out_times == [0, 1, 2, 3, 4, 5]
+    assert out_labels == labels
+
+
+def test_timestamped_streamer_direct_arrays():
+    # Test direct array usage
+    times = [0, 1, 2, 3, 4, 5]
+    labels = [0, 0, 1, 1, 0, 0]
+    streamer = TimestampedDataStreamer(
+        name="direct_arrays",
+        time=times,
+        data=labels,
+    )
+    out_times = []
+    out_labels = []
+    for t, v in streamer:
+        out_times.append(t)
+        out_labels.append(v)
+    assert out_times == [0, 1, 2, 3, 4, 5]
+    assert out_labels == labels
+
+
 def test_static_streamer():
     streamer = StaticDataStreamer("static", data=42)
     for i, (t, v) in enumerate(streamer):
         assert v == 42
         if i > 10:
             break
-
-
-def test_static_tabular_streamer():
-    csv_path = label_dir / "moving_square.csv"
-    streamer = StaticTabularStreamer(
-        name="static_tabular",
-        data_source=str(csv_path),
-        data_col="label",
-        time_col="time",
-        sample_rate=30.0,
-        num_samples=10,
-    )
-
-    for i, (t, v) in enumerate(streamer):
-        assert isinstance(v, list)
-        assert len(v) == 10
-
-        # 10 samples over 5 seconds. Expect 0, 0, 1, 1, 0, 0, 1, 1,0, 0
-        for j in range(10):
-            assert abs(v[j] - ((j // 2) % 2)) <= 1e-5
-
-        if i > 10:
-            break
-
-
-def test_progress_streamer():
-    csv_path = label_dir / "moving_square.csv"
-    tab_streamer = TabularStreamer(
-        name="tabular_csv",
-        data_source=str(csv_path),
-        data_col="label",
-        time_col="time",
-        sample_rate=30.0,
-    )
-    prog = ProgressStreamer("progress", tab_streamer, sample_rate=30.0)
-    progresses = [v for _, v in prog]
-    assert all(0.0 - 1e-5 <= p <= 1.0 + 1e-5 for p in progresses)
-    assert abs(progresses[0] - 0.0) <= 1e-5
-    assert abs(progresses[-1] - 1.0) <= 1e-5

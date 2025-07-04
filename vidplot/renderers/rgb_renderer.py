@@ -8,88 +8,79 @@ from vidplot.core import Renderer, DataStreamer
 
 class RGBRenderer(Renderer):
     """
-    Renderer for displaying RGB/BGR/grayscale frames with flexible resizing and background options.
+    Display RGB/BGR/grayscale frames with flexible resize modes and optional transparency
     Args:
-        name: Unique name for the renderer.
-        data_streamer: The data streamer providing frames.
-        grid_row: Tuple of (start_row, end_row) in grid.
-        grid_column: Tuple of (start_col, end_col) in grid.
-        channel: 'rgb' or 'bgr'. Determines expected channel order for output.
-        resize_mode: 'fit' (keep aspect, pad), 'stretch' (fill bbox), or 'center'
-            (no resize, center in bbox).
-        background: Background color as tuple (R,G,B) or (R,G,B,A) or None for transparent.
-        z_index: Depth ordering; larger values drawn on top.
+        name: Unique renderer name.
+        data_streamer: Supplies frame data.
+        channel: 'rgb' or 'bgr'.
+        resize_mode: 'stretch', 'fit', or 'center'.
+        background: (R,G,B) background fill, or None for transparent.
     """
 
     def __init__(
         self,
         name: str,
         data_streamer: DataStreamer,
-        grid_row: Tuple[int, int],
-        grid_column: Tuple[int, int],
         channel: str = "rgb",
         resize_mode: str = "fit",
-        background: Optional[Tuple[int, ...]] = (0, 0, 0),
-        z_index: int = 0,
+        background: Optional[Tuple[int, int, int]] = (0, 0, 0),
     ):
-        super().__init__(name, data_streamer, grid_row, grid_column, z_index=z_index)
+        super().__init__(name, data_streamer)
         assert channel in ("rgb", "bgr"), "channel must be 'rgb' or 'bgr'"
         assert resize_mode in (
-            "fit",
             "stretch",
+            "fit",
             "center",
-        ), "resize_mode must be 'fit', 'stretch', or 'center'"
+        ), "resize_mode must be 'stretch', 'fit', or 'center'"
         self.channel = channel
         self.resize_mode = resize_mode
         self.background = background
 
+    @property
     def _default_size(self) -> Tuple[int, int]:
         return (100, 100)
 
     def _convert_to_rgb(self, frame: np.ndarray) -> np.ndarray:
-        if frame.ndim == 2:  # Grayscale
+        if frame.ndim == 2 or frame.shape[2] == 1:
             return cv2.cvtColor(frame, cv2.COLOR_GRAY2RGB)
-        if frame.shape[2] == 1:
-            return cv2.cvtColor(frame, cv2.COLOR_GRAY2RGB)
-        if self.channel == "rgb":
-            return frame
-        elif self.channel == "bgr":
-            return cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        return frame
+        return frame if self.channel == "rgb" else cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-    def _render(self, data: Any, bbox: Tuple[int, int, int, int], canvas: Any) -> Any:
+    def _calculate_bbox(self, bbox: Tuple[int, int, int, int]) -> Tuple[int, int, int, int]:
+        # bbox: (x1, y1, x2, y2)
         x1, y1, x2, y2 = bbox
-        target_w, target_h = x2 - x1, y2 - y1
+        w = x2 - x1
+        h = y2 - y1
+        fh, fw = self.data_streamer.size[:2]
+        if self.resize_mode == "stretch":
+            return (x1, y1, x2, y2)
+        if self.resize_mode == "fit":
+            scale = min(w / fw, h / fh)
+            nw, nh = int(fw * scale), int(fh * scale)
+            ox = x1 + (w - nw) // 2
+            oy = y1 + (h - nh) // 2
+            return (ox, oy, ox + nw, oy + nh)
+        # center
+        ox = x1 + (w - fw) // 2
+        oy = y1 + (h - fh) // 2
+        return (ox, oy, ox + fw, oy + fh)
+
+    def _render(
+        self,
+        data: Any,
+        bbox: Tuple[int, int, int, int],
+        canvas: Any,
+    ) -> Any:
         if data is None:
             return canvas
-        frame = np.array(data)
-        frame = self._convert_to_rgb(frame)
-        fh, fw = frame.shape[:2]
-        # Prepare background
-        if self.background is None:
-            bg = np.zeros((target_h, target_w, 3), dtype=np.uint8)
-        else:
-            bg = np.ones((target_h, target_w, 3), dtype=np.uint8)
-            for c in range(3):
-                bg[..., c] *= self.background[c] if c < len(self.background) else 0
-        # Resize logic
-        if self.resize_mode == "stretch":
-            resized = cv2.resize(frame, (target_w, target_h), interpolation=cv2.INTER_AREA)
-            bg[:, :, :] = resized
-        elif self.resize_mode == "fit":
-            scale = min(target_w / fw, target_h / fh)
-            new_w, new_h = int(fw * scale), int(fh * scale)
-            resized = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_AREA)
-            y_off = (target_h - new_h) // 2
-            x_off = (target_w - new_w) // 2
-            bg[y_off : y_off + new_h, x_off : x_off + new_w, :] = resized
-        elif self.resize_mode == "center":
-            y_off = (target_h - fh) // 2
-            x_off = (target_w - fw) // 2
-            if 0 <= y_off < target_h and 0 <= x_off < target_w:
-                h_clip = min(fh, target_h - y_off)
-                w_clip = min(fw, target_w - x_off)
-                bg[y_off : y_off + h_clip, x_off : x_off + w_clip, :] = frame[:h_clip, :w_clip, :]
-        # Place on canvas
-        canvas[y1:y2, x1:x2, :] = bg
+
+        x1, y1, x2, y2 = bbox
+        w = x2 - x1
+        h = y2 - y1
+        frame = self._convert_to_rgb(np.array(data))
+        # Background fill if needed
+        if self.background is not None:
+            canvas[y1:y2, x1:x2] = self.background
+        # Resize frame to target region and blit
+        resized = cv2.resize(frame, (w, h), interpolation=cv2.INTER_AREA)
+        canvas[y1:y2, x1:x2] = resized
         return canvas

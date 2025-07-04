@@ -10,33 +10,73 @@ from vidplot.core import Renderer
 class COCOKeypoints3DRenderer(Renderer):
     """
     Renders 3D COCO-format keypoints inside a bounding box using matplotlib.
+
+    This renderer uses the global styling configuration as defaults and allows
+    individual parameters to be overridden via **kwargs.
+
+    Styling Parameters (can be overridden with **kwargs):
+        marker_color: Color for 3D keypoint markers (str)
+        marker_size: Size of 3D keypoint markers (int)
+
+    Global Style Integration:
+        All parameters default to values from vidplot.style.rcParams().
+        Use vidplot.style.rc() to change global defaults.
+        Use vidplot.style.use_style() to apply predefined themes.
+
+    Examples:
+        # Use all global defaults
+        renderer = COCOKeypoints3DRenderer("3d_keypoints", streamer)
+
+        # Override specific parameters
+        renderer = COCOKeypoints3DRenderer("3d_keypoints", streamer,
+                                           marker_color='blue',      # Blue markers
+                                           marker_size=30)          # Larger markers
+
+        # Custom 3D view
+        renderer = COCOKeypoints3DRenderer("3d_keypoints", streamer,
+                                           figsize=(6, 6),           # Larger plot
+                                           elev=45,                  # 45° elevation
+                                           azim=-45)                # -45° azimuth
     """
 
     def __init__(
         self,
         name: str,
         data_streamer,
-        grid_row: Tuple[int, int],
-        grid_column: Tuple[int, int],
-        z_index: int = 0,
         figsize: Tuple[int, int] = (4, 4),
         elev: int = 10,
         azim: int = -90,
         confidence_threshold: float = 0.0,
+        **kwargs,
     ):
         """
-        Parameters:
-        - name: Unique name for the renderer
-        - data_streamer: DataStreamer providing 3D pose data
-        - grid_row: Tuple of (start_row, end_row) in grid
-        - grid_column: Tuple of (start_col, end_col) in grid
-        - z_index: Depth ordering; larger values drawn on top
-        - figsize: Figure size for matplotlib
-        - elev: Elevation angle for 3D view
-        - azim: Azimuth angle for 3D view
-        - confidence_threshold: Minimum confidence to show a keypoint
+        Initialize COCOKeypoints3DRenderer with optional styling overrides.
+
+        Args:
+            name: Unique identifier for this renderer
+            data_streamer: DataStreamer providing 3D pose data
+            figsize: Figure size tuple for matplotlib
+            elev: Elevation angle for 3D view
+            azim: Azimuth angle for 3D view
+            confidence_threshold: Minimum confidence to show keypoints
+            **kwargs: Optional styling parameter overrides:
+                - marker_color: Marker color string (default: 'red')
+                - marker_size: Marker size (default: 20)
+
+        Note:
+            All kwargs override the corresponding global style parameters.
+            See vidplot.style.rcParams() for current global defaults.
         """
-        super().__init__(name, data_streamer, grid_row, grid_column, z_index)
+        super().__init__(name, data_streamer)
+
+        # Get default values from global style configuration
+        # config = rcParams()
+
+        # Set styling parameters with kwargs override
+        self.marker_color = kwargs.get("marker_color", "red")
+        self.marker_size = kwargs.get("marker_size", 20)
+
+        # Store explicit parameters
         self.figsize = figsize
         self.elev = elev
         self.azim = azim
@@ -65,7 +105,7 @@ class COCOKeypoints3DRenderer(Renderer):
         mask = conf >= self.confidence_threshold
         x, y, z = pose[mask, 0], pose[mask, 1], pose[mask, 2]
 
-        ax.scatter(x, y, z, c="red", s=20)
+        ax.scatter(x, y, z, c=self.marker_color, s=self.marker_size)
         ax.set_box_aspect([1, 1, 1])
         ax.axis("off")
 

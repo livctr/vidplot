@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 
 from vidplot.core import Renderer, DataStreamer
+from vidplot.style import rcParams
 
 
 def paint_box_in_place(
@@ -51,132 +52,162 @@ def paint_box_in_place(
 
 class BoxRenderer(Renderer):
     """
-    A renderer for overlaying bounding boxes on a video frame.
+    Overlay bounding boxes on a video frame, aligned with a base renderer's bbox.
 
-    This renderer draws bounding boxes for objects, with optional labels
-    displaying ID and score. It correctly handles resizing to align with a
-    base video layer.
+    This renderer uses the global styling configuration as defaults and allows
+    individual parameters to be overridden via **kwargs.
+
+    Styling Parameters (can be overridden with **kwargs):
+        line_thickness: Thickness of box borders (int)
+        font_scale: Font size scaling for labels (float)
+
+    Global Style Integration:
+        All parameters default to values from vidplot.style.rcParams().
+        Use vidplot.style.rc() to change global defaults.
+        Use vidplot.style.use_style() to apply predefined themes.
+
+    Examples:
+        # Use all global defaults
+        renderer = BoxRenderer("boxes", streamer, id_to_color)
+
+        # Override specific parameters
+        renderer = BoxRenderer("boxes", streamer, id_to_color,
+                              line_thickness=3,
+                              font_scale=0.8)
+
+        # Use different coordinate formats
+        renderer = BoxRenderer("boxes", streamer, id_to_color,
+                              box_representation_format="xywh",
+                              resize_mode="fit")
     """
 
     def __init__(
         self,
         name: str,
         data_streamer: DataStreamer,
-        grid_row: Tuple[int, int],
-        grid_column: Tuple[int, int],
         id_to_color: Dict[int, Tuple[int, int, int]],
-        box_representation_format: str = "xyxy",
         label_box: bool = True,
-        line_thickness: int = 2,
-        font_scale: float = 0.5,
+        box_representation_format: str = "xyxy",
         resize_mode: str = "fit",
-        z_index: int = 1,
+        **kwargs,
     ):
-        super().__init__(name, data_streamer, grid_row, grid_column, z_index=z_index)
-        assert resize_mode in ("fit", "stretch", "center")
-        assert box_representation_format in ("xyxy", "xywh")
+        """
+        Initialize BoxRenderer with optional styling overrides.
 
-        self.id_to_color = id_to_color
-        self.box_representation_format = box_representation_format
+        Args:
+            name: Unique identifier for this renderer
+            data_streamer: DataStreamer providing box data
+            id_to_color: Mapping from box IDs to RGB color tuples
+            label_box: Whether to draw labels on boxes
+            box_representation_format: 'xyxy' or 'xywh' format
+            resize_mode: 'stretch', 'fit', or 'center' for coordinate mapping
+            **kwargs: Optional styling parameter overrides:
+                - line_thickness: Box border thickness (default: from global config)
+                - font_scale: Font size scaling (default: from global config)
+
+        Note:
+            All kwargs override the corresponding global style parameters.
+            See vidplot.style.rcParams() for current global defaults.
+        """
+        super().__init__(name, data_streamer)
+
+        # Get default values from global style configuration
+        config = rcParams()
+
+        # Set styling parameters with kwargs override
+        self.line_thickness = kwargs.get("line_thickness", config.box_thickness)
+        self.font_scale = kwargs.get("font_scale", config.font_scale)
+
+        # Store explicit parameters
         self.label_box = label_box
-        self.line_thickness = line_thickness
-        self.font_scale = font_scale
+        self.box_representation_format = box_representation_format
         self.resize_mode = resize_mode
 
+        # Validate parameters
+        assert self.resize_mode in ("stretch", "fit", "center"), "Invalid resize_mode"
+        assert self.box_representation_format in ("xyxy", "xywh"), "Invalid format"
+
+        # Store color mapping
+        self.id_to_color = id_to_color
+
+    @property
     def _default_size(self) -> Tuple[int, int]:
         return (100, 100)
 
-    def _render(self, data: Any, bbox: Tuple[int, int, int, int], canvas: Any) -> Any:
-        """
-        Renders bounding boxes on top of the existing canvas content.
+    def _calculate_bbox(self, bbox: Tuple[int, int, int, int]) -> Tuple[int, int, int, int]:
+        return bbox
 
-        This method processes a list of box detections, transforms their
-        coordinates based on the resize mode, and paints them onto the canvas.
-        The expected data format is a dictionary:
-        {
-            "shape": (original_height, original_width),
-            "boxes": [
-                {"box": [x1, y1, x2, y2], "score": 0.9, "id": 1},
-                ...
-            ]
-        }
-        """
-        canvas_x1, canvas_y1, canvas_x2, canvas_y2 = bbox
-        target_w, target_h = canvas_x2 - canvas_x1, canvas_y2 - canvas_y1
-
+    def _render(
+        self,
+        data: Any,
+        bbox: Tuple[int, int, int, int],
+        canvas: Any,
+    ) -> Any:
+        x1, y1, x2, y2 = bbox
+        w = x2 - x1
+        h = y2 - y1
         if data is None or not data.get("boxes"):
             return canvas
 
-        # Store shape if not already stored, or use stored shape
         if not hasattr(self, "_cached_shape"):
             self._cached_shape = data["shape"]
         fh, fw = self._cached_shape
 
         for item in data["boxes"]:
-            box_coords = item["box"]
+            coords = item["box"]
             box_id = item.get("id")
-
-            if box_id is None or box_id not in self.id_to_color:
+            if box_id not in self.id_to_color:
                 continue
-
             color = self.id_to_color[box_id]
 
-            # 1. Convert box to xyxy format
             if self.box_representation_format == "xywh":
-                x1, y1, w, h = box_coords
-                x2, y2 = x1 + w, y1 + h
+                x, y, bw, bh = coords
+                x2b, y2b = x + bw, y + bh
+                x1b, y1b = x, y
             else:
-                x1, y1, x2, y2 = box_coords
+                x1b, y1b, x2b, y2b = coords
 
-            # 2. Apply resize transformation to get coordinates relative to the target view
-            final_box = None
+            # map box coords based on resize_mode
             if self.resize_mode == "stretch":
-                x_scale, y_scale = target_w / fw, target_h / fh
-                nx1, ny1 = int(x1 * x_scale), int(y1 * y_scale)
-                nx2, ny2 = int(x2 * x_scale), int(y2 * y_scale)
-                final_box = (nx1, ny1, nx2, ny2)
-
+                xs, ys = w / fw, h / fh
+                rx1, ry1 = int(x1b * xs), int(y1b * ys)
+                rx2, ry2 = int(x2b * xs), int(y2b * ys)
             elif self.resize_mode == "fit":
-                scale = min(target_w / fw, target_h / fh)
-                new_w, new_h = int(fw * scale), int(fh * scale)
-                x_off, y_off = (target_w - new_w) // 2, (target_h - new_h) // 2
-                nx1, ny1 = int(x1 * scale + x_off), int(y1 * scale + y_off)
-                nx2, ny2 = int(x2 * scale + x_off), int(y2 * scale + y_off)
-                final_box = (nx1, ny1, nx2, ny2)
+                scale = min(w / fw, h / fh)
+                nw, nh = int(fw * scale), int(fh * scale)
+                x_off = (w - nw) // 2
+                y_off = (h - nh) // 2
+                rx1 = int(x1b * scale + x_off)
+                ry1 = int(y1b * scale + y_off)
+                rx2 = int(x2b * scale + x_off)
+                ry2 = int(y2b * scale + y_off)
+            else:  # center
+                x_off = (w - fw) // 2
+                y_off = (h - fh) // 2
+                rx1 = x1b + x_off
+                ry1 = y1b + y_off
+                rx2 = x2b + x_off
+                ry2 = y2b + y_off
+                rx1, ry1 = max(0, rx1), max(0, ry1)
+                rx2, ry2 = min(w, rx2), min(h, ry2)
+                if rx1 >= rx2 or ry1 >= ry2:
+                    continue
 
-            elif self.resize_mode == "center":
-                x_off, y_off = (target_w - fw) // 2, (target_h - fh) // 2
-                nx1, ny1 = int(x1 + x_off), int(y1 + y_off)
-                nx2, ny2 = int(x2 + x_off), int(y2 + y_off)
-                # Clip the box to the target view's boundaries
-                nx1_c = max(0, nx1)
-                ny1_c = max(0, ny1)
-                nx2_c = min(target_w, nx2)
-                ny2_c = min(target_h, ny2)
-                if nx1_c < nx2_c and ny1_c < ny2_c:
-                    final_box = (nx1_c, ny1_c, nx2_c, ny2_c)
+            abs_box = (rx1 + x1, ry1 + y1, rx2 + x1, ry2 + y1)
+            label = None
+            if self.label_box:
+                score = item.get("score")
+                label = f"ID: {box_id}"
+                if score is not None:
+                    label += f" ({score:.2f})"
 
-            # 3. Draw the final box on the canvas
-            if final_box:
-                # Convert to absolute canvas coordinates
-                abs_x1 = final_box[0] + canvas_x1
-                abs_y1 = final_box[1] + canvas_y1
-                abs_x2 = final_box[2] + canvas_x1
-                abs_y2 = final_box[3] + canvas_y1
+            paint_box_in_place(
+                canvas,
+                abs_box,
+                color=color,
+                label=label,
+                thickness=self.line_thickness,
+                font_scale=self.font_scale,
+            )
 
-                label = None
-                if self.label_box:
-                    score = item.get("score")
-                    label = f"ID: {box_id}"
-                    if score is not None:
-                        label += f" ({score:.2f})"
-
-                paint_box_in_place(
-                    canvas,
-                    (abs_x1, abs_y1, abs_x2, abs_y2),
-                    color=color,
-                    label=label,
-                    thickness=self.line_thickness,
-                    font_scale=self.font_scale,
-                )
         return canvas

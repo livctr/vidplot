@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Protocol, Tuple
+from typing import Any, Dict, Protocol, Tuple, runtime_checkable
 
 
 class DataStreamer(ABC):
@@ -39,6 +39,7 @@ class DataStreamer(ABC):
         raise NotImplementedError("Subclasses must implement __next__ method")
 
 
+@runtime_checkable
 class SizedStreamerProtocol(Protocol):
     @property
     def size(self) -> Tuple[int, int]:

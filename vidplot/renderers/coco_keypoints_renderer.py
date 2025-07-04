@@ -1,65 +1,95 @@
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Tuple
 import cv2
 import numpy as np
 
 from vidplot.core import Renderer
+from vidplot.style import rcParams
 
 
 class COCOKeypointsRenderer(Renderer):
     """
     Renders COCO-format keypoints on a canvas within a bounding box.
+
+    This renderer uses the global styling configuration as defaults and allows
+    individual parameters to be overridden via **kwargs.
+
+    Styling Parameters (can be overridden with **kwargs):
+        color: RGB color for keypoint circles (tuple)
+        radius: Radius of keypoint circles (int)
+        thickness: Circle thickness, -1 for filled (int)
+        draw_labels: Whether to draw labels on keypoints (bool)
+        keypoint_labels: Mapping from index to string label (dict)
+        font_scale: Font size scaling for labels (float)
+        font_color: RGB color for label text (tuple)
+        font_thickness: Font thickness for labels (int)
+        font_face: OpenCV font face constant (int)
+        confidence_threshold: Minimum confidence to show keypoints (float)
+        assume_normalized: Force normalized/pixel input detection (bool or None)
+
+    Global Style Integration:
+        All parameters default to values from vidplot.style.rcParams().
+        Use vidplot.style.rc() to change global defaults.
+        Use vidplot.style.use_style() to apply predefined themes.
+
+    Examples:
+        # Use all global defaults
+        renderer = COCOKeypointsRenderer("keypoints", streamer)
+
+        # Override specific parameters
+        renderer = COCOKeypointsRenderer("keypoints", streamer,
+                                        color=(255, 0, 0),      # Red keypoints
+                                        radius=5,               # Larger circles
+                                        draw_labels=True,       # Show labels
+                                        confidence_threshold=0.5)
+
+        # Custom keypoint labels
+        labels = {0: 'nose', 1: 'left_eye', 2: 'right_eye'}
+        renderer = COCOKeypointsRenderer("keypoints", streamer,
+                                        keypoint_labels=labels,
+                                        font_scale=0.6)
     """
 
-    def __init__(
-        self,
-        name: str,
-        data_streamer,
-        grid_row: Tuple[int, int],
-        grid_column: Tuple[int, int],
-        z_index: int = 0,
-        color: Tuple[int, int, int] = (0, 255, 0),  # Green in BGR
-        radius: int = 3,
-        thickness: int = -1,
-        draw_labels: bool = False,
-        keypoint_labels: Optional[Dict[int, str]] = None,
-        font_scale: float = 0.4,
-        font_color: Tuple[int, int, int] = (255, 255, 255),
-        font_thickness: int = 1,
-        font_face: int = cv2.FONT_HERSHEY_SIMPLEX,
-        confidence_threshold: float = 0.0,
-        assume_normalized: Optional[bool] = None,
-    ):
+    def __init__(self, name: str, data_streamer, **kwargs):
         """
-        Parameters:
-        - name: Unique name for the renderer
-        - data_streamer: DataStreamer providing pose keypoints
-        - grid_row: Tuple of (start_row, end_row) in grid
-        - grid_column: Tuple of (start_col, end_col) in grid
-        - z_index: Depth ordering; larger values drawn on top
-        - color: Circle color (BGR)
-        - radius: Radius of each keypoint circle
-        - thickness: Thickness of the circle outline. -1 = filled
-        - draw_labels: Whether to draw labels on keypoints
-        - keypoint_labels: Mapping from index to string label (e.g., {4: 'LW'})
-        - font_scale: Scale of font used for labels
-        - font_color: Font color for labels
-        - font_thickness: Thickness of label text
-        - font_face: Font face for label text
-        - confidence_threshold: Minimum confidence to show a keypoint
-        - assume_normalized: If True/False, forces normalized/pixel input. If None, auto-detects
+        Initialize COCOKeypointsRenderer with optional styling overrides.
+
+        Args:
+            name: Unique identifier for this renderer
+            data_streamer: DataStreamer providing pose keypoints
+            **kwargs: Optional styling parameter overrides:
+                - color: RGB color for keypoints (default: from global config)
+                - radius: Circle radius (default: from global config)
+                - thickness: Circle thickness (default: from global config)
+                - draw_labels: Whether to draw labels (default: False)
+                - keypoint_labels: Index to label mapping (default: {})
+                - font_scale: Font size scaling (default: from global config)
+                - font_color: Label text color (default: from global config)
+                - font_thickness: Label text thickness (default: from global config)
+                - font_face: OpenCV font face (default: from global config)
+                - confidence_threshold: Min confidence (default: from global config)
+                - assume_normalized: Force input detection (default: None)
+
+        Note:
+            All kwargs override the corresponding global style parameters.
+            See vidplot.style.rcParams() for current global defaults.
         """
-        super().__init__(name, data_streamer, grid_row, grid_column, z_index)
-        self.color = color
-        self.radius = radius
-        self.thickness = thickness
-        self.draw_labels = draw_labels
-        self.keypoint_labels = keypoint_labels or {}
-        self.font_scale = font_scale
-        self.font_color = font_color
-        self.font_thickness = font_thickness
-        self.font_face = font_face
-        self.confidence_threshold = confidence_threshold
-        self.assume_normalized = assume_normalized
+        super().__init__(name, data_streamer)
+
+        # Get default values from global style configuration
+        config = rcParams()
+
+        # Set styling parameters with kwargs override
+        self.color = kwargs.get("color", config.marker_color)
+        self.radius = kwargs.get("radius", config.marker_radius)
+        self.thickness = kwargs.get("thickness", config.marker_thickness)
+        self.draw_labels = kwargs.get("draw_labels", False)
+        self.keypoint_labels = kwargs.get("keypoint_labels", {})
+        self.font_scale = kwargs.get("font_scale", config.font_scale)
+        self.font_color = kwargs.get("font_color", config.font_color)
+        self.font_thickness = kwargs.get("font_thickness", config.font_thickness)
+        self.font_face = kwargs.get("font_face", getattr(cv2, config.font_face))
+        self.confidence_threshold = kwargs.get("confidence_threshold", config.confidence_threshold)
+        self.assume_normalized = kwargs.get("assume_normalized", None)
 
     @property
     def _default_size(self):

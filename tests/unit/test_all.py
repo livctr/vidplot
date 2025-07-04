@@ -1,14 +1,12 @@
 import os
 import numpy as np
 
-import pytest
 
-from vidplot.core import AnnotationOrchestrator, StaticDataStreamer
-from vidplot.streamers import (
-    VideoStreamer,
-)
+from vidplot.core import VideoCanvas, StaticDataStreamer
+from vidplot.streamers import VideoStreamer, LabelBarStreamer
 from vidplot.renderers import (
     StringRenderer,
+    LabelBarRenderer,
 )
 
 
@@ -28,88 +26,63 @@ def test_annotated_video():
         (video_path_short, label_path_short, "annotated_video_misaligned.jpg"),
     ]:
         # Video streamer
-        vid_streamer = VideoStreamer("video", video, sample_rate=30.0)
-        # Label streamer
-        label_streamer = StaticTabularStreamer(
-            name="labels",
-            data_source=label,
-            data_col="label",
-            time_col="time",
-            sample_rate=30.0,
-        )
-        # Progress streamer
-        with pytest.raises(
-            ValueError,
-            match="Progress streamer must track progress from a streamer of known duration.",
-        ):
-            progress_streamer = ProgressStreamer("progress", vid_streamer, sample_rate=30.0)
+        vid_streamer = VideoStreamer("video", video)
+        # Label streamer (use TimestampedDataStreamer)
 
-        progress_streamer = ProgressStreamer("progress", label_streamer, sample_rate=30.0)
-
+        label_streamer = LabelBarStreamer("labels", "time", "label", label)
         # Title streamer (static)
         title = os.path.basename(outname).replace("_", " ").replace(".mp4", "").title()
         title_streamer = StaticDataStreamer("title", title)
-
-        # Compose grid: 3 rows (title, label bar+progress, video), 1 column
-        grid_rows = [40, 30, vid_streamer.size[1]]
-        grid_cols = [vid_streamer.size[0]]
-        orch = AnnotationOrchestrator(grid_rows, grid_cols, gap=0)
-
+        # Compose grid: 3 rows (title, label bar, video), 1 column
+        canvas = VideoCanvas(row_gap=0, col_gap=0)
         # Renderers
         title_renderer = StringRenderer(
             name="title",
             data_streamer=title_streamer,
-            grid_row=(1, 1),
-            grid_column=(1, 1),
-            font_scale=1.0,
-            font_color=(0, 0, 0),
-            thickness=2,
-            num_expected_lines=1,
         )
-        label_bar_renderer = HorizontalLabelBarRenderer(
+        label_bar_renderer = LabelBarRenderer(
             name="label_bar",
             data_streamer=label_streamer,
             label_to_color={0: (255, 0, 0), 1: (0, 255, 0)},
-            grid_row=(2, 2),
-            grid_column=(1, 1),
             height=20,
         )
-        progress_renderer = ProgressRenderer(
-            name="progress",
-            data_streamer=progress_streamer,
-            grid_row=(2, 2),
-            grid_column=(1, 1),
-            bar_color=(0, 0, 255),
-            thickness=4,
-        )
-        # Video renderer (use RGBRenderer if available, else fallback to direct)
         from vidplot.renderers.rgb_renderer import RGBRenderer
 
         video_renderer = RGBRenderer(
             name="video",
             data_streamer=vid_streamer,
-            grid_row=(3, 3),
-            grid_column=(1, 1),
         )
-
-        # Set up orchestrator
-        orch.set_annotators(
-            [vid_streamer, label_streamer, progress_streamer, title_streamer],
-            [
-                video_renderer,
-                label_bar_renderer,
-                progress_renderer,
-                title_renderer,
-            ],
-            [
-                ("video", "video"),
-                ("labels", "label_bar"),
-                ("progress", "progress"),
-                ("title", "title"),
-            ],
+        # Attach streamers/renderers to canvas
+        video_h, video_w = vid_streamer.size[:2]
+        canvas.attach(
+            title_streamer,
+            title_renderer,
+            grid_row=1,
+            grid_col=1,
+            height=[40],
+            width=[video_w],
+            z_index=0,
+        )
+        canvas.attach(
+            label_streamer,
+            label_bar_renderer,
+            grid_row=2,
+            grid_col=1,
+            height=[30],
+            width=[video_w],
+            z_index=0,
+        )
+        canvas.attach(
+            vid_streamer,
+            video_renderer,
+            grid_row=3,
+            grid_col=1,
+            height=[video_h],
+            width=[video_w],
+            z_index=0,
         )
         outpath = f"tests/output/all/{outname}"
-        orch.write(outpath, fps=30.0)
+        canvas.write(outpath, fps=30.0)
         assert os.path.exists(outpath)
 
 
@@ -123,27 +96,19 @@ def test_label_bars():
         # Simple gradient + moving square
         frame = np.ones((height, width, 3), dtype=np.uint8) * 255
         x = int((width - 20) * i / (n_frames - 1))
-        frame[20:40, x:x+20] = [0, 128, 255]
+        frame[20:40, x : x + 20] = [0, 128, 255]
         video_frames.append(frame)
     video_frames = np.stack(video_frames)
-
     LABEL_TO_COLOR = {0: (255, 0, 0), 1: (0, 255, 0), 2: (0, 0, 255)}
-
     # --- Label bar 1 ---
     bar1_labels = [0, 1, 2, 1, 0]
     bar1_timestamps = [0, 10, 25, 45, 55]
     bar1_duration = 60
-    bar1_duration_sec = bar1_duration / 30.0
-
     # --- Label bar 2 ---
     bar2_labels = [1, 2, 0, 2, 1]
     bar2_timestamps = [0, 12, 25, 43, 55]
-    bar2_duration = 59
-    bar2_duration_sec = bar2_duration / 30.0
-
-    # --- Streamers ---
-    from vidplot.core import StaticDataStreamer
-    from vidplot.streamers import StaticDataStreamer, LabelBarStreamer, TimestampedDataStreamer
+    # bar2_duration = 59
+    from vidplot.streamers import StaticDataStreamer, LabelBarStreamer
     from vidplot.renderers import StringRenderer, LabelBarRenderer
 
     # Title
@@ -152,70 +117,55 @@ def test_label_bars():
     title_renderer = StringRenderer(
         name="title",
         data_streamer=title_streamer,
-        grid_row=(1, 1),
-        grid_column=(1, 1),
     )
-
     # Label bar streamer
     bar1_streamer = LabelBarStreamer(
-        "bar1",
-        {"label": bar1_labels, "timestamp": bar1_timestamps},
-        data_col="label",
-        time_col="timestamp",
-        duration=bar1_duration,
+        name="bar1", data=bar1_labels, time=bar1_timestamps, duration=bar1_duration
     )
     bar1_renderer = LabelBarRenderer(
         name="label_bar1",
         data_streamer=bar1_streamer,
         label_to_color=LABEL_TO_COLOR,
-        grid_row=(2, 2),
-        grid_column=(1, 1),
-        z_index=0,
         height=20,
         progress_bar_color=(0, 0, 0),
         write_sampled_data_str=True,
     )
-
-    bar2_streamer = LabelBarStreamer(
-        "bar2",
-        {"label": bar2_labels, "timestamp": bar2_timestamps},
-        data_col="label",
-        time_col="timestamp",
-        duration=bar1_duration,
-    )
+    bar2_streamer = LabelBarStreamer("bar2", data=bar2_labels, time=bar2_timestamps)
     bar2_renderer = LabelBarRenderer(
         name="label_bar2",
         data_streamer=bar2_streamer,
         label_to_color=LABEL_TO_COLOR,
-        grid_row=(3, 3),
-        grid_column=(1, 1),
-        z_index=0,
         height=20,
         progress_bar_color=(0, 0, 0),
         write_sampled_data_str=True,
     )
-
-    grid_rows = [40, 20, 20]
-    grid_cols = [width]
-    orch = AnnotationOrchestrator(grid_rows, grid_cols, gap=0)
-    orch.set_annotators(
-        [bar1_streamer, bar2_streamer, title_streamer],
-        [bar1_renderer, bar2_renderer, title_renderer],
-        [
-            ("bar1", "label_bar1"),
-            ("bar2", "label_bar2"),
-            ("title", "title"),
-        ],
+    # Use VideoCanvas and attach API
+    canvas = VideoCanvas(row_gap=0, col_gap=0)
+    # Row 1: title (height 40), Row 2: bar1 (height 20), Row 3: bar2 (height 20)
+    # Col 1: only one column (width = width)
+    canvas.attach(
+        title_streamer,
+        title_renderer,
+        grid_row=1,
+        grid_col=1,
+        height=[40],
+        width=[width],
+        z_index=0,
     )
-
+    canvas.attach(
+        bar1_streamer, bar1_renderer, grid_row=2, grid_col=1, height=[20], width=[width], z_index=0
+    )
+    canvas.attach(
+        bar2_streamer, bar2_renderer, grid_row=3, grid_col=1, height=[20], width=[width], z_index=0
+    )
     # --- Grid ---
-    outpath_mp4 = "tests/output/all/label_bar_demo.mp4"
-    orch.write(outpath_mp4, fps=30.0)
+    outpath_mp4 = "tests/output/all/label_bar_demo.png"
+    canvas.write(outpath_mp4, fps=30.0)
     assert os.path.exists(outpath_mp4)
 
 
 def main():
-    # test_annotated_video()
+    test_annotated_video()
     test_label_bars()
 
 

@@ -16,7 +16,8 @@ class VideoStreamer(DataStreamer, SizedStreamerProtocol):
         Args:
             name (str): Name of the video streamer.
             path (str): Path to the video file.
-            backend (str): Backend to use for video processing. Options are 'opencv', 'pyav', or 'decord'.
+            backend (str): Backend to use for video processing. Options are 'opencv', 'pyav',
+                or 'decord'.
         Raises:
             IOError: If the video file cannot be opened.
             ValueError: If the backend is unsupported or if FPS cannot be determined.
@@ -61,13 +62,13 @@ class VideoStreamer(DataStreamer, SizedStreamerProtocol):
             self.fps = self.vr.get_avg_fps()
             self.total_frames = len(self.vr)
             first_frame = self.vr[0]
-            width, height = first_frame.shape[1], first_frame.shape[0]
+            height, width = first_frame.shape[:2]
 
         if self.fps <= 0:
             raise ValueError(f"Could not determine FPS for backend '{backend}'")
-    
+
         self._duration = self.total_frames / self.fps
-        self._size = (width, height)
+        self._size = (height, width)
         self._seeked_num = 0
 
     @property
@@ -79,12 +80,13 @@ class VideoStreamer(DataStreamer, SizedStreamerProtocol):
     def size(self) -> Tuple[int, int]:
         """Return (width, height) of the video frames."""
         return self._size
-    
+
     def __next__(self):
         """
         Retrieve the next frame in the video stream.
         Returns:
-            Tuple[float, ndarray]: A tuple containing the timestamp (in seconds) and the frame as a NumPy array.
+            Tuple[float, ndarray]: A tuple containing the timestamp (in seconds) and
+            the frame as a NumPy array.
         Raises:
             StopIteration: If there are no more frames to read.
         """

@@ -10,8 +10,8 @@ import cv2
 import numpy as np
 import os
 
-from vidplot import AnnotationOrchestrator
-from vidplot.streamers import VideoStreamer, TabularStreamer
+from vidplot import VideoCanvas
+from vidplot.streamers import VideoStreamer, TimestampedDataStreamer
 from vidplot.renderers import RGBRenderer, SegmentationRenderer
 from vidplot.renderers.utils import get_tab10_color
 
@@ -109,7 +109,7 @@ def test_segmentation_rendering_pipeline():
     # --- 1. Setup Paths and Create Test Data ---
     input_video_path = "./tests/input/videos/sample_video.mp4"
     segmentation_data_path = "./tests/input/frame_segmentations/segmentations.json"
-    output_video_path = "./tests/output/video_with_segmentations.mp4"
+    output_video_path = "./tests/output/video_with_segmentations.png"
 
     # Create dummy video for the test
     create_dummy_video(input_video_path)
@@ -123,17 +123,20 @@ def test_segmentation_rendering_pipeline():
         )
 
     # --- 3. Setup Data Streamers ---
-
     video_streamer = VideoStreamer("video_stream", input_video_path)
-    # Assume TabularStreamer can handle a list of dicts and corresponding timestamps
-    segmentation_streamer = TabularStreamer(
-        "seg_stream", segmentation_data_path, "encoded_outputs", "frame_times"
+    # Use TimestampedDataStreamer for segmentations
+    segmentation_streamer = TimestampedDataStreamer(
+        name="seg_stream",
+        data_source=segmentation_data_path,
+        time="frame_times",
+        data="encoded_outputs",
     )
 
     # --- 4. Setup Renderers ---
     # Renderer for the base video
     video_renderer = RGBRenderer(
-        "base_video", video_streamer, grid_row=(1, 1), grid_column=(1, 1), z_index=0
+        name="base_video",
+        data_streamer=video_streamer,
     )
 
     # Create a color map for the object IDs
@@ -142,29 +145,37 @@ def test_segmentation_rendering_pipeline():
 
     # Renderer for the segmentation masks
     segmentation_renderer = SegmentationRenderer(
-        "seg_overlay",
-        segmentation_streamer,
-        grid_row=(1, 1),
-        grid_column=(1, 1),
+        name="seg_overlay",
+        data_streamer=segmentation_streamer,
         id_to_color=id_to_color_map,
         alpha=0.3,
-        z_index=1,
     )
 
     # --- 5. Orchestrate and Render ---
-    width, height = video_streamer.size
-    orchestrator = AnnotationOrchestrator(
-        grid_template_rows=[height], grid_template_columns=[width]
+    height, width = video_streamer.size
+    canvas = VideoCanvas(row_gap=0, col_gap=0)
+    # Attach both renderers to the same cell (1,1)
+    canvas.attach(
+        video_streamer,
+        video_renderer,
+        grid_row=1,
+        grid_col=1,
+        height=[height],
+        width=[width],
+        z_index=0,
     )
-
-    orchestrator.set_annotators(
-        [video_streamer, segmentation_streamer],
-        [video_renderer, segmentation_renderer],
-        [("video_stream", "base_video"), ("seg_stream", "seg_overlay")],
+    canvas.attach(
+        segmentation_streamer,
+        segmentation_renderer,
+        grid_row=1,
+        grid_col=1,
+        height=[height],
+        width=[width],
+        z_index=1,
     )
 
     print("Starting rendering process...")
-    orchestrator.write(output_video_path)
+    canvas.write(output_video_path)
     print("Rendering complete.")
 
     # --- 6. Assert ---

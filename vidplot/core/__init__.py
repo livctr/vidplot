@@ -1,4 +1,4 @@
-from .orchestrator import AnnotationOrchestrator
+from .video_canvas import VideoCanvas
 from .renderer import Renderer
 from .streamer import (
     DataStreamer,
@@ -8,9 +8,9 @@ from .streamer import (
 
 
 __all__ = [
-    "AnnotationOrchestrator",
+    "VideoCanvas",
     "Renderer",
     "DataStreamer",
     "StaticDataStreamer",
-    "SizedStreamerProtocol",  # <- makes it a public API
+    "SizedStreamerProtocol",
 ]
