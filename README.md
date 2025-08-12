@@ -4,6 +4,8 @@
 |:---:|:---:|:---:|
 | Annotated Video | Layout Example | Animated Demo |
 
+Source: PaulsAdventures on pixabay. Find it here: [link](https://pixabay.com/videos/turtle-ocean-tortoise-wildlife-244754/).
+
 ## Features
 - Intuitive label bar visualization for temporal data
 - Layout debugging
@@ -35,11 +37,7 @@ pip install .[av]
 
 See the [demo](demo/) folder for an example script on how to use VidPlot. The script `demo/demo.py` takes as inputs the assets within `demo/assets` and outputs an annotated video in `demo/output/`.
 
-Run `python demo/demo.py` to get started.
-
-**Example output:**
-
-![Annotated Video Example](demo/output/annotated_video.png)
+Run `python demo/demo.py` to get started. You'll see the results in this README.
 
 ## Quick Start: API
 
