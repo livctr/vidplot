@@ -2,7 +2,7 @@
 
 | ![First-frame preview](demo/output/annotated_video.png) | ![Layout Example](demo/output/layout.png) | ![Animated Demo](demo/output/annotated_video.gif) |
 |:---:|:---:|:---:|
-| Annotated Video | Layout Example | Animated Demo |
+| First-frame Preview | Layout Example | Animated Video |
 
 Source: PaulsAdventures on pixabay. Find it here: [link](https://pixabay.com/videos/turtle-ocean-tortoise-wildlife-244754/).
 
