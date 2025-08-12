@@ -122,6 +122,8 @@ class StringRenderer(Renderer):
 
         # Ensure the text does not go outside the canvas (clip coordinates)
         text_x = max(0, min(canvas.shape[1] - text_w, text_x))
+        h = y2 - y
+        text_y = y + (h + text_h) // 2  # centers vertically (OpenCV baseline adjustment)
         text_y = max(text_h, min(canvas.shape[0], text_y))
 
         # Draw text on the image

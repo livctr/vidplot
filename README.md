@@ -1,15 +1,18 @@
 # VidPlot
 
-**VidPlot** is a Python package for visualizing and annotating videos, designed for computer vision and data science workflows. It provides tools to overlay annotations, visualize object tracking, and interactively explore video datasets.
+| ![First-frame preview](demo/output/annotated_video.png) | ![Layout Example](demo/output/layout.png) | ![Animated Demo](demo/output/annotated_video.gif) |
+|:---:|:---:|:---:|
+| Annotated Video | Layout Example | Animated Demo |
 
 ## Features
-- Overlay bounding boxes, labels, and custom annotations on videos
-- Support for OpenCV and optional Decord or PyAV backends
-- Easy integration with pandas DataFrames and numpy arrays
-- Progress bars and batch processing with tqdm
-- Interactive visualization with matplotlib
-- **Centralized styling system** similar to matplotlib's rcParams
-- **Modern grid-based layout** with `VideoCanvas` for flexible composition
+- Intuitive label bar visualization for temporal data
+- Layout debugging
+- First-frame preview before you commit to running the entire video
+- Versatile data input support: pandas, NumPy, CSV, JSON
+- Comprehensive annotation capabilities: bounding boxes, segmentation masks, pose keypoints
+- Multi-backend flexibility: OpenCV core with optional Decord or PyAV integration
+- Matplotlib-inspired styling system for consistent visual theming
+- Grid-based layout engine for pixel-perfect video composition
 
 ## Installation
 
@@ -31,6 +34,8 @@ pip install .[av]
 ## Demo
 
 See the [demo](demo/) folder for an example script on how to use VidPlot. The script `demo/demo.py` takes as inputs the assets within `demo/assets` and outputs an annotated video in `demo/output/`.
+
+Run `python demo/demo.py` to get started.
 
 **Example output:**
 

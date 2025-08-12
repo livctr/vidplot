@@ -1,6 +1,5 @@
 tests/input/
 tests/output/
-demo/output/
 
 .coverage
 

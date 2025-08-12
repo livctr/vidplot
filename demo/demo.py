@@ -1,6 +1,6 @@
 import os
-from vidplot.streamers import VideoStreamer, LabelBarStreamer, StaticDataStreamer
-from vidplot.renderers import RGBRenderer, LabelBarRenderer, StringRenderer
+from vidplot.streamers import VideoStreamer, LabelBarStreamer, StaticDataStreamer, TimestampedDataStreamer
+from vidplot.renderers import RGBRenderer, LabelBarRenderer, StringRenderer, BoxRenderer
 from vidplot.core.video_canvas import VideoCanvas
 from vidplot.style import rcParams, use_style
 
@@ -8,7 +8,7 @@ from vidplot.style import rcParams, use_style
 if __name__ == "__main__":
     # --- DEMONSTRATE GLOBAL STYLE PRESETS ---
     # You can quickly apply a global style preset:
-    use_style("dark")  # Try "default", "dark", "minimal", or "high_contrast"
+    use_style("minimal")  # Try "default", "dark", "minimal", or "high_contrast"
 
     # --- DEMONSTRATE CUSTOMIZING GLOBAL STYLES ---
     # You can further customize style parameters after use_style
@@ -26,90 +26,59 @@ if __name__ == "__main__":
     )
 
     os.makedirs("demo/output/", exist_ok=True)
-    video_path = "demo/assets/moving_square.mp4"
-    label_path = "demo/assets/moving_square.csv"
+    video_path = "demo/assets/demo_video.mp4"
+    label_path = "demo/assets/demo_labels.csv"
+    bboxes_path = "demo/assets/demo_bboxes.json"
     outnames = [
         "annotated_video.png",  # Displays just the first frame
         "annotated_video.mp4",
     ]
 
     for outname in outnames:
-        # Video streamer
-        vid_streamer = VideoStreamer("video", video_path)
 
-        # Label bar streamer (using new API)
+
+        canvas = VideoCanvas(row_gap=5, col_gap=0)
+
+        vid_streamer = VideoStreamer("video", video_path)
+        vid_renderer = RGBRenderer("video", vid_streamer)
+        height = vid_streamer.size[0]
+        width = vid_streamer.size[1]
+        canvas.attach(vid_streamer, vid_renderer, grid_row=3, grid_col=1, height=[height], width=[width])
+
+        title_streamer = StaticDataStreamer("title", "Sea Turtle Gliding Over Coral Reef")
+        title_renderer = StringRenderer(
+            name="title",
+            data_streamer=title_streamer,
+
+        )
+        canvas.attach(title_streamer, title_renderer, grid_row=1, grid_col=1, height=[20], width=[width])
+
         label_streamer = LabelBarStreamer(
-            name="labels",
+            name="label_bar",
             data_source=label_path,
             time="time",
             data="label",
-            duration=vid_streamer.duration,
-            num_samples=int(vid_streamer.duration * 30),
+            duration=vid_streamer.duration
         )
-
-        # Video renderer (inherits global style)
-        video_renderer = RGBRenderer(
-            name="video",
-            data_streamer=vid_streamer,
-        )
-
-        # Label bar renderer (override height and font size locally)
-        label_bar_renderer = LabelBarRenderer(
-            name="label_bar",
-            data_streamer=label_streamer,
-            height=32,  # Override global label_bar.height
-            font_size=18,  # Override global font.size for this renderer
-        )
-
-        # String overlay renderer (override font and color locally)
-        overlay_text = os.path.basename(outname).replace("_", " ").replace(".mp4", "").title()
-        string_streamer = StaticDataStreamer("string_overlay_streamer", "Overlay!")
-        string_renderer = StringRenderer(
-            name="string_overlay",
-            data_streamer=string_streamer,
-            text=overlay_text,
-            font_scale=1.2,  # Override global font scale
-            font_color=(255, 0, 0),  # Override global font color (red)
-            thickness=4,  # Override global thickness
-            num_expected_lines=1,
-        )
-
-        # Set up VideoCanvas
-        height = vid_streamer.size[1]
-        width = vid_streamer.size[0]
-        canvas = VideoCanvas(row_gap=5, col_gap=0)
-        # Attach video to (2,1), label bar to (1,1), string overlay to (2,1) with higher z_index
-        canvas.attach(
-            vid_streamer,
-            video_renderer,
-            grid_row=2,
-            grid_col=1,
-            height=[height],
-            width=[width],
-            z_index=0,
-        )
-        canvas.attach(
+        label_renderer = LabelBarRenderer(
+            "label_bar",
             label_streamer,
-            label_bar_renderer,
-            grid_row=1,
-            grid_col=1,
-            height=[32],
-            width=[width],
-            z_index=0,
+            label_to_color={"recover": (86, 113, 121), "propel": (194, 178, 128)}
         )
-        canvas.attach(
-            string_streamer,
-            string_renderer,
-            grid_row=2,
-            grid_col=1,
-            height=[height],
-            width=[width],
-            z_index=1,
-        )
+        canvas.attach(label_streamer, label_renderer, grid_row=2, grid_col=1, width=[width])
 
-        # Show layout (optional)
+        box_streamer = TimestampedDataStreamer("box", "time", "bboxes", data_source=bboxes_path, duration=vid_streamer.duration)
+        box_renderer = BoxRenderer(
+            name="box",
+            data_streamer=box_streamer,
+            id_to_color={1: (86, 113, 121)},
+            box_color=(86, 113, 121),
+            thickness=2,
+            box_representation_format="xyxy"
+        )
+        canvas.attach(box_streamer, box_renderer, grid_row=3, grid_col=1, z_index=1)
+
         canvas.show_layout("demo/output/" + "layout.png")
-        # Run
         outpath = "demo/output/" + outname
         os.makedirs("demo/output/", exist_ok=True)
         canvas.write(outpath, fps=30.0)
